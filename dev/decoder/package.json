@@ -1,0 +1,29 @@
+{
+  "name": "cc",
+  "version": "1.0.0",
+  "description": "",
+  "main": "cc-core.js",
+  "dependencies": {
+    "bwip-js": "^4.5.1",
+    "color": "^4.2.3",
+    "color-convert": "^2.0.1",
+    "color-name": "^1.1.4",
+    "color-string": "^1.9.1",
+    "detect-libc": "^2.1.2",
+    "is-arrayish": "^0.3.4",
+    "playwright": "^1.48.2",
+    "playwright-core": "^1.48.2",
+    "semver": "^7.8.5",
+    "sharp": "^0.33.5",
+    "simple-swizzle": "^0.2.4",
+    "tagged-tag": "^1.0.0",
+    "type-fest": "^5.10.0",
+    "zxing-wasm": "^2.2.4"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}

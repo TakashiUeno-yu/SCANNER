@@ -1,0 +1,11 @@
+# 医薬品マスター（MEDIS のデータ）は再配布しない
+*.zip
+*.csv
+A_*_2.*
+h*_h.*
+# 生成物・作業用
+manual/manual.html
+manual/*.pdf
+node_modules/
+__pycache__/
+*.y4m

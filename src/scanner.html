@@ -1,0 +1,1422 @@
+<title>SCANNER</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+/* Layout: one narrow column — scanner window on top, result slip, then a ledger of past scans */
+:root{
+  --bg:#EDF1EF; --surface:#FFFFFF; --ink:#16211D; --muted:#5D6B66; --line:#D3DBD7;
+  --accent:#0E7458; --accent-ink:#FFFFFF; --laser:#E5322D; --ok:#1F7A3F; --warn:#9A5B00;
+  --m-ruler:#D99A00; --m-height:#2F6FD6;
+  --sans:"Zen Kaku Gothic New","Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0F1513; --surface:#18211E; --ink:#E4ECE8; --muted:#94A39D; --line:#2A3632;
+  --accent:#3FBF95; --accent-ink:#06130E; --laser:#FF5A52; --ok:#5DD08A; --warn:#E6A84A; --m-ruler:#F2B630; --m-height:#6FA3FF; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0F1513; --surface:#18211E; --ink:#E4ECE8; --muted:#94A39D; --line:#2A3632;
+  --accent:#3FBF95; --accent-ink:#06130E; --laser:#FF5A52; --ok:#5DD08A; --warn:#E6A84A; --m-ruler:#F2B630; --m-height:#6FA3FF; color-scheme:dark}
+[hidden]{display:none!important}
+html,body{background:var(--bg);color:var(--ink)}
+body{font-family:var(--sans);font-size:15px;line-height:1.6;-webkit-text-size-adjust:100%}
+.wrap{max-width:560px;margin:0 auto;padding-block:20px 40px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:20px}
+header{display:flex;align-items:center;justify-content:space-between;gap:10px}
+h1{font-size:26px;font-weight:900;letter-spacing:.02em;margin:0;white-space:nowrap;flex:0 0 auto}
+.logo{display:block;height:30px;width:auto;overflow:visible}.logo .i{fill:var(--ink)}
+h1 small{font-family:var(--mono);font-size:11px;font-weight:500;color:var(--muted);letter-spacing:.12em;margin-left:8px}
+.badge{font-size:11px;color:var(--muted);border:1px solid var(--line);border-radius:99px;padding:2px 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+
+/* scanner window */
+.scanner{background:var(--ink);border-radius:18px;padding:14px;display:grid;gap:12px}
+.view{position:relative;aspect-ratio:4/3;max-width:100%;border-radius:10px;overflow:hidden;background:#0A0F0D;display:grid;place-items:center}
+.view video,.view img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+.view .hint{color:#A9B8B2;font-size:13px;text-align:center;padding:16px;line-height:1.7}
+.view .bars{font-family:var(--mono);font-size:30px;letter-spacing:-2px;color:#5E7069;display:block;margin-bottom:6px}
+.laser{position:absolute;left:8%;right:8%;top:50%;height:2px;background:var(--laser);box-shadow:0 0 10px var(--laser);opacity:.85;display:none}
+.view.live .laser{display:block}
+.view.shot .corners{display:none}
+@media (prefers-reduced-motion:reduce){.view.live .laser{animation:none}}
+.corners{position:absolute;inset:12%;pointer-events:none;
+  background:linear-gradient(var(--accent),var(--accent)) 0 0/22px 3px,linear-gradient(var(--accent),var(--accent)) 0 0/3px 22px,
+  linear-gradient(var(--accent),var(--accent)) 100% 0/22px 3px,linear-gradient(var(--accent),var(--accent)) 100% 0/3px 22px,
+  linear-gradient(var(--accent),var(--accent)) 0 100%/22px 3px,linear-gradient(var(--accent),var(--accent)) 0 100%/3px 22px,
+  linear-gradient(var(--accent),var(--accent)) 100% 100%/22px 3px,linear-gradient(var(--accent),var(--accent)) 100% 100%/3px 22px;
+  background-repeat:no-repeat}
+.status{font-size:12px;color:#A9B8B2;min-height:1.6em;text-align:center}
+.status.err{color:#FF8A84}
+.live-note{grid-column:1/-1;margin:0;font-size:11px;color:#94A39D;line-height:1.6}
+.btns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.btn{font:inherit;font-weight:700;font-size:14px;border:0;border-radius:10px;padding:12px 10px;cursor:pointer;text-align:center;display:flex;align-items:center;justify-content:center;gap:6px;min-height:46px;text-decoration:none}
+.btn:focus-visible,input:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.btn.primary{background:var(--accent);color:var(--accent-ink);grid-column:1/-1;font-size:16px;min-height:54px}
+.btn.dark{background:#26322E;color:#E4ECE8}
+.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+.btn.small{font-size:13px;min-height:38px;padding:8px 12px;font-weight:500}
+.btn input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+label.btn{position:relative}
+
+/* result slip */
+.slip{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;display:grid;gap:12px}
+.sheet-bar,.sheet-ok{display:none}
+body.sheet{overflow:hidden}
+body.sheet .slip{position:fixed;inset:0;z-index:50;border-radius:0;border:0;overflow-y:auto;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;gap:12px;
+  padding:calc(14px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) calc(28px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));animation:sheetIn .18s ease-out}
+@keyframes sheetIn{from{transform:translateY(24px);opacity:0}to{transform:none;opacity:1}}
+@media (prefers-reduced-motion:reduce){body.sheet .slip{animation:none}}
+body.sheet .sheet-ok{display:flex;align-items:center;gap:10px;font-size:20px;font-weight:900;color:var(--ok)}
+body.sheet .sheet-ok b{display:grid;place-items:center;width:34px;height:34px;border-radius:50%;background:var(--ok);color:var(--surface);font-size:20px}
+body.sheet .sheet-bar{display:grid;grid-template-columns:1fr auto;gap:8px;position:sticky;bottom:calc(-28px - env(safe-area-inset-bottom,0px));margin-top:auto;background:var(--surface);padding:12px 0 calc(12px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--line);order:99}
+body.sheet .sheet-bar .btn{min-height:56px;font-size:17px}
+body.sheet .slip>h2,body.sheet .manual{display:none}
+.slip h2,.ledger h2{font-size:12px;font-weight:700;letter-spacing:.14em;color:var(--muted);margin:0}
+.code{font-family:var(--mono);font-weight:700;font-size:22px;word-break:break-all;line-height:1.35;user-select:all}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-size:11px;font-weight:700;border-radius:6px;padding:2px 8px;background:var(--bg);color:var(--muted);border:1px solid var(--line)}
+.chip.ok{color:var(--ok);border-color:currentColor;background:transparent}
+.chip.warn{color:var(--warn);border-color:currentColor;background:transparent}
+.actions{display:flex;flex-wrap:wrap;gap:8px}
+.actions .btn{flex:1 1 calc(50% - 4px)}
+.drug{display:grid;gap:8px;padding:12px;border-radius:10px;background:var(--bg);border:1px solid var(--line)}
+.drug-h{font-size:12px;font-weight:700;letter-spacing:.12em;color:var(--accent)}
+.drug-gtin{font-family:var(--mono);font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums;word-break:break-all}
+.drug-links{display:flex;flex-wrap:wrap;gap:8px}
+.drug-links .btn{flex:1 1 calc(50% - 4px)}
+.drug-links .drug-main{flex-basis:100%;background:var(--accent);color:var(--accent-ink);border-color:transparent;font-weight:700;font-size:15px;min-height:46px}
+.drug-note{font-size:12px;color:var(--muted);line-height:1.6}
+.gs1t{width:100%;border-collapse:collapse;font-size:14px;background:var(--surface);border-radius:8px;overflow:hidden}
+.gs1t th,.gs1t td{border:1px solid var(--line);padding:7px 10px;text-align:left;vertical-align:top}
+.gs1t th{width:7.5em;font-weight:700;color:var(--muted);background:var(--bg);font-size:12px}
+.gs1t td{font-family:var(--mono);word-break:break-all}
+.gs1t td.na{font-family:var(--sans);color:var(--muted);font-size:12px}
+.m-pre{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.m-pre button{font:inherit;font-family:var(--mono);font-size:14px;min-width:46px;height:38px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer}
+.m-pre button.on{background:var(--m-ruler);border-color:var(--m-ruler);color:#1a1300;font-weight:700}
+.slip.stale .chips,.slip.stale .drug,.slip.stale .actions{opacity:.35}
+.manual{display:flex;gap:8px}
+/* measure */
+.measure{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;display:grid;gap:12px}
+.measure h2{font-size:12px;font-weight:700;letter-spacing:.14em;color:var(--muted);margin:0}
+.m-head{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.m-steps{margin:0;padding-left:1.4em;font-size:13px;display:grid;gap:4px}
+.sw{display:inline-block;width:18px;height:4px;border-radius:2px;vertical-align:middle;margin-right:6px}
+.sw.ruler{background:var(--m-ruler)} .sw.width{background:var(--accent)} .sw.height{background:var(--m-height)}
+.m-ref{display:grid;gap:6px;font-size:13px}
+.m-ref input{width:4.2em;height:38px;box-sizing:border-box;font:inherit;font-family:var(--mono);padding:6px 8px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+.m-stage{position:relative}
+#mCanvas{width:100%;height:auto;display:block;border-radius:8px;touch-action:none;background:#000;cursor:crosshair}
+#mLoupe{position:absolute;top:8px;width:140px;height:140px;border-radius:50%;border:3px solid var(--surface);box-shadow:0 2px 10px rgba(0,0,0,.4);pointer-events:none}
+.m-nudge{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+.m-nudge span{flex:1;min-width:9em}
+.m-nudge button{font:inherit;font-size:16px;width:44px;height:40px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer}
+.m-res{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:0;font-size:14px}
+.m-res dt{color:var(--muted)}
+.m-res dd{margin:0;font-family:var(--mono);font-variant-numeric:tabular-nums}
+.m-res .ok{color:var(--ok);font-weight:700} .m-res .warn{color:var(--warn);font-weight:700}
+.m-tip{font-size:12px;color:var(--muted);margin:0;line-height:1.7}
+.manual input{flex:1;min-width:0;font:inherit;font-family:var(--mono);font-size:15px;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+
+/* ledger */
+.ledger{display:grid;gap:10px}
+.ledger-head{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.list{list-style:none;margin:0;padding:0;background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.item{display:grid;grid-template-columns:1fr auto;gap:4px 10px;padding:12px 14px;border-top:1px solid var(--line);align-items:center}
+.item:first-child{border-top:0}
+.item button.open{all:unset;cursor:pointer;min-width:0;display:grid;gap:2px}
+.item button.open:focus-visible{outline:3px solid var(--accent);outline-offset:2px;border-radius:4px}
+.item .val{font-family:var(--mono);font-size:14px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.item .meta{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+.del{font:inherit;font-size:12px;color:var(--muted);background:none;border:1px solid var(--line);border-radius:8px;padding:4px 10px;cursor:pointer}
+.empty{padding:20px 14px;color:var(--muted);font-size:13px;text-align:center}
+.confirm{display:flex;gap:6px;align-items:center;font-size:12px;color:var(--muted)}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:8px 16px;border-radius:99px;font-size:13px;font-weight:700;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.show{opacity:1}
+footer{font-size:12px;color:var(--muted);line-height:1.7}
+.master{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;display:grid;gap:10px}
+.master h2{font-size:12px;font-weight:700;letter-spacing:.14em;color:var(--muted);margin:0}
+.master .st{font-size:13px;margin:0}
+.master .row{display:flex;gap:8px;flex-wrap:wrap}
+.master .row .btn{flex:1 1 auto}
+.master p.m-tip{margin:0}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1><svg class="logo" viewBox="0 0 390 76" role="img" aria-label="SCANNER"><polygon class="i" points="16.8,6.0 21.3,2.0 42.9,2.0 46.4,6.0 41.8,10.0 20.2,10.0"/><polygon class="i" points="15.4,7.2 18.8,11.2 15.8,32.8 11.2,36.8 7.8,32.8 10.8,11.2"/><polygon class="i" points="12.3,38.0 16.8,34.0 38.4,34.0 41.9,38.0 37.3,42.0 15.7,42.0"/><polygon class="i" points="42.9,39.2 46.3,43.2 43.3,64.8 38.7,68.8 35.3,64.8 38.3,43.2"/><polygon class="i" points="7.8,70.0 12.3,66.0 33.9,66.0 37.4,70.0 32.8,74.0 11.2,74.0"/><polygon class="i" points="68.8,6.0 73.3,2.0 94.9,2.0 98.4,6.0 93.8,10.0 72.2,10.0"/><polygon class="i" points="67.4,7.2 70.8,11.2 67.8,32.8 63.2,36.8 59.8,32.8 62.8,11.2"/><polygon class="i" points="62.9,39.2 66.3,43.2 63.3,64.8 58.7,68.8 55.3,64.8 58.3,43.2"/><polygon class="i" points="59.8,70.0 64.3,66.0 85.9,66.0 89.4,70.0 84.8,74.0 63.2,74.0"/><polygon class="i" points="120.8,6.0 125.3,2.0 146.9,2.0 150.4,6.0 145.8,10.0 124.2,10.0"/><polygon class="i" points="151.4,7.2 154.8,11.2 151.8,32.8 147.2,36.8 143.8,32.8 146.8,11.2"/><polygon class="i" points="146.9,39.2 150.3,43.2 147.3,64.8 142.7,68.8 139.3,64.8 142.3,43.2"/><polygon class="i" points="114.9,39.2 118.3,43.2 115.3,64.8 110.7,68.8 107.3,64.8 110.3,43.2"/><polygon class="i" points="119.4,7.2 122.8,11.2 119.8,32.8 115.2,36.8 111.8,32.8 114.8,11.2"/><polygon class="i" points="116.3,38.0 120.8,34.0 142.4,34.0 145.9,38.0 141.3,42.0 119.7,42.0"/><polygon class="i" points="211.4,7.2 214.8,11.2 211.8,32.8 207.2,36.8 203.8,32.8 206.8,11.2"/><polygon class="i" points="206.9,39.2 210.3,43.2 207.3,64.8 202.7,68.8 199.3,64.8 202.3,43.2"/><polygon class="i" points="166.9,39.2 170.3,43.2 167.3,64.8 162.7,68.8 159.3,64.8 162.3,43.2"/><polygon class="i" points="171.4,7.2 174.8,11.2 171.8,32.8 167.2,36.8 163.8,32.8 166.8,11.2"/><polygon class="i" points="176.0,14.4 183.3,36.8 186.4,36.8 187.5,29.2 181.5,11.2 176.4,11.2"/><polygon class="i" points="186.6,46.8 192.6,64.8 197.7,64.8 198.1,61.6 190.8,39.2 187.7,39.2"/><polygon class="i" points="271.4,7.2 274.8,11.2 271.8,32.8 267.2,36.8 263.8,32.8 266.8,11.2"/><polygon class="i" points="266.9,39.2 270.3,43.2 267.3,64.8 262.7,68.8 259.3,64.8 262.3,43.2"/><polygon class="i" points="226.9,39.2 230.3,43.2 227.3,64.8 222.7,68.8 219.3,64.8 222.3,43.2"/><polygon class="i" points="231.4,7.2 234.8,11.2 231.8,32.8 227.2,36.8 223.8,32.8 226.8,11.2"/><polygon class="i" points="236.0,14.4 243.3,36.8 246.4,36.8 247.5,29.2 241.5,11.2 236.4,11.2"/><polygon class="i" points="246.6,46.8 252.6,64.8 257.7,64.8 258.1,61.6 250.8,39.2 247.7,39.2"/><polygon class="i" points="292.8,6.0 297.3,2.0 318.9,2.0 322.4,6.0 317.8,10.0 296.2,10.0"/><polygon class="i" points="283.8,70.0 288.3,66.0 309.9,66.0 313.4,70.0 308.8,74.0 287.2,74.0"/><polygon class="i" points="286.9,39.2 290.3,43.2 287.3,64.8 282.7,68.8 279.3,64.8 282.3,43.2"/><polygon class="i" points="291.4,7.2 294.8,11.2 291.8,32.8 287.2,36.8 283.8,32.8 286.8,11.2"/><polygon class="i" points="288.3,38.0 292.8,34.0 314.4,34.0 317.9,38.0 313.3,42.0 291.7,42.0"/><polygon class="i" points="344.8,6.0 349.3,2.0 378.9,2.0 382.4,6.0 377.8,10.0 348.2,10.0"/><polygon class="i" points="383.4,7.2 386.8,11.2 383.8,32.8 379.2,36.8 375.8,32.8 378.8,11.2"/><polygon class="i" points="338.9,39.2 342.3,43.2 339.3,64.8 334.7,68.8 331.3,64.8 334.3,43.2"/><polygon class="i" points="343.4,7.2 346.8,11.2 343.8,32.8 339.2,36.8 335.8,32.8 338.8,11.2"/><polygon class="i" points="340.3,38.0 344.8,34.0 374.4,34.0 377.9,38.0 373.3,42.0 343.7,42.0"/><polygon class="i" points="358.1,50.8 364.0,68.8 369.1,68.8 369.6,65.6 362.2,43.2 359.1,43.2"/></svg></h1>
+    <span class="badge">履歴はこの端末だけに保存</span>
+  </header>
+
+  <section class="scanner" aria-label="読み取り">
+    <div class="view" id="view">
+      <div class="hint" id="hint"><span class="bars">▌▍▎▌▏▍▌▎▍</span>下の「撮影して読み取る」でカメラが開きます。<br>バーコードを画面いっぱいに写してください。</div>
+      <video id="video" playsinline muted hidden></video>
+      <img id="preview" alt="読み取った写真" hidden>
+      <div class="corners" aria-hidden="true"></div>
+      <div class="laser" aria-hidden="true"></div>
+    </div>
+    <div class="status" id="status" role="status"></div>
+    <div class="btns">
+      <label class="btn primary" for="shot">📷 撮影して読み取る<input id="shot" type="file" accept="image/*" capture="environment"></label>
+      <label class="btn dark" for="pick">写真から選ぶ<input id="pick" type="file" accept="image/*"></label>
+      <button class="btn dark" id="liveBtn" type="button">連続読み取り</button>
+      <p class="live-note" id="liveNote" hidden>「連続読み取り」（カメラをかざすだけで読む）は、この画面では使えないため隠しています。自分用の URL（GitHub Pages など）に置いたときに使えます。</p>
+      <button class="btn dark" id="measureBtn" type="button" style="grid-column:1/-1" hidden>📏 この写真でサイズを測る</button>
+    </div>
+  </section>
+
+  <section class="measure" id="measure" hidden aria-label="サイズ計測">
+    <div class="m-head"><h2>サイズを測る</h2><button class="del" id="mClose" type="button">閉じる</button></div>
+    <ol class="m-steps">
+      <li><span class="sw ruler"></span>黄の線の両端を、金指しの2つの目盛りに合わせる</li>
+      <li><span class="sw width"></span>緑の線を、バーの左端と右端に合わせる（左右の余白は含めない）</li>
+      <li><span class="sw height"></span>青の線を、通常のバーの上端と下端に合わせる（JANは長いガードバーではなく通常のバー）</li>
+    </ol>
+    <div class="m-ref"><span>黄の線の長さ（mm）</span><div class="m-pre" id="mPre"><button type="button" data-v="10">10</button><button type="button" data-v="20">20</button><button type="button" data-v="30" class="on">30</button><button type="button" data-v="50">50</button><button type="button" data-v="100">100</button><input id="mRef" type="text" inputmode="decimal" enterkeyhint="done" value="30" aria-label="黄の線の長さ（mm）・その他の値"></div></div>
+    <div class="m-stage"><canvas id="mCanvas"></canvas><canvas id="mLoupe" width="280" height="280" hidden></canvas></div>
+    <div class="m-nudge" id="mNudge"><span id="mSel">選択中：緑①</span>
+      <button type="button" data-dx="-1" data-dy="0" aria-label="左へ1px">◀</button><button type="button" data-dx="0" data-dy="-1" aria-label="上へ1px">▲</button><button type="button" data-dx="0" data-dy="1" aria-label="下へ1px">▼</button><button type="button" data-dx="1" data-dy="0" aria-label="右へ1px">▶</button>
+    </div>
+    <dl class="m-res" id="mRes"></dl>
+    <button class="btn ghost small" id="mCopy" type="button">結果をコピー</button>
+    <p class="m-tip">金指しはバーコードと同じ面に密着させ、真上から撮ってください。斜めから撮ると誤差が出ます。目盛りはなるべく離れた2点（例：0と100mm）を選ぶと誤差が小さくなります。反射で目盛りが見えにくいときは、照明の向きを変えてください。</p>
+  </section>
+
+  <section class="slip" id="slip" aria-live="polite">
+    <div class="sheet-ok" id="sheetOk"><b aria-hidden="true">✓</b>読み取りました</div>
+    <h2>読み取り結果</h2>
+    <div class="code" id="code">—</div>
+    <div class="chips" id="chips"></div>
+    <div class="drug" id="drug" hidden></div>
+    <div class="actions" id="actions"></div>
+    <form class="manual" id="manual">
+      <input id="manualInput" inputmode="numeric" autocomplete="off" placeholder="番号を入力・貼り付け（例 (01)04987…）" aria-label="コードを手入力">
+      <button class="btn ghost small" type="submit">確認</button>
+    </form>
+      <div class="sheet-bar" id="sheetBar"><button class="btn primary" id="sheetNext" type="button" style="grid-column:auto">続けて読む</button><button class="btn ghost" id="sheetClose" type="button">閉じる</button></div>
+  </section>
+
+  <section class="ledger">
+    <div class="ledger-head">
+      <h2>履歴</h2>
+      <div id="clearArea"><button class="del" id="clearBtn" type="button">すべて削除</button></div>
+    </div>
+    <ul class="list" id="list"></ul>
+  </section>
+
+  <section class="master" aria-label="医薬品マスター">
+    <h2>医薬品マスター（薬品名の表示用）</h2>
+    <p class="st" id="mstStatA">医薬品コード：未読込</p>
+    <p class="st" id="mstStat">HOT コード：未読込</p>
+    <div style="display:grid;gap:4px">
+      <a class="btn ghost small" id="mstDlA" href="#" target="_blank" rel="noopener">① 医薬品コード（全件）をダウンロード</a>
+      <span class="m-tip" id="mstDlNoteA" style="text-align:center"></span>
+      <span class="m-tip">ダウンロードが終わったら、② で「ダウンロード」フォルダの zip を選びます。調剤・販売・元梱の全包装単位で薬品名が出ます。</span>
+    </div>
+    <div class="row">
+      <label class="btn ghost small" for="mstFile">② マスターを読み込む<input id="mstFile" type="file" accept=".zip,.txt,application/zip,text/plain"></label>
+      <button class="btn ghost small" id="mstDel" type="button" hidden>削除</button>
+    </div>
+    <details class="m-tip"><summary>HOT コードも表示したいとき（任意）</summary>
+      <div style="display:grid;gap:4px;margin-top:6px">
+        <a class="btn ghost small" id="mstDl" href="#" target="_blank" rel="noopener">MEDIS の HOT コードマスターをダウンロード</a>
+        <span id="mstDlNote" style="text-align:center"></span>
+        <span>販売包装単位コード付版（h年月日_h.zip）を同じく ② で読み込むと、HOT13 コードも表示します。</span>
+      </div>
+    </details>
+    <p class="m-tip">医薬品コード：一般財団法人 医療情報システム開発センター（MEDIS）の <a href="https://medhot.medd.jp/view_download" target="_blank" rel="noopener">医薬品コード 全件CSV</a>（調剤包装単位・販売包装単位・元梱包装単位コードファイル）。① は前月末日の版のアドレスを自動で作ります。まだ公開されていないときはリンク先のページから選んでください。データはこの端末の中だけに保存し、どこにも送信しません。月1回程度、読み込み直してください。</p>
+  </section>
+
+  <footer>JAN／EAN・UPC・Code128・Code39・ITF・GS1 DataBar（標準型・限定型・拡張型）・GS1-128・Data Matrix・QRコードなどに対応。DataBar 等の上にある合成シンボル（CC-A／CC-B）から使用期限・ロットも読みます。医薬品のGS1コードを読むと、PMDAの電子添文・関連文書ページ（添文ナビと同じ参照先）を開けます。読み取りはすべてこの端末の中で行い、どこにも送信しません。<br><span id="engine">限定型エンジン：準備中…</span></footer>
+</div>
+<div class="toast" id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/zxing-wasm@2.2.4/dist/iife/reader/index.js"></script>
+<!--CC-BEGIN-->
+<script>
+const CC_TBL={c:[
+"1d5c0,1eaf0,1f57c,1d4e0,1ea78,1f53e,1a8c0,1d470,1a860,15040,1a830,15020,1adc0,1d6f0,1eb7c,1ace0,1d678,1eb3e,158c0,1ac70,15860,15dc0,1aef0,1d77c,15ce0,1ae78,1d73e,15c70,1ae3c,15ef0,1af7c,15e78,1af3e,15f7c,1f5fa,1d2e0,1e978,1f4be,1a4c0,1d270,1e93c,1a460,1d238,14840,1a430,1d21c,14820,1a418,14810,1a6e0,1d378,1e9be,14cc0,1a670,1d33c,14c60,1a638,1d31e,14c30,1a61c,14ee0,1a778,1d3be,14e70,1a73c,14e38,1a71e,14f78,1a7be,14f3c,14f1e,1a2c0,1d170,1e8bc,1a260,1d138,1e89e,14440,1a230,1d11c,14420,1a218,14410,14408,146c0,1a370,1d1bc,14660,1a338,1d19e,14630,1a31c,14618,1460c,14770,1a3bc,14738,1a39e,1471c,147bc,1a160,1d0b8,1e85e,14240,1a130,1d09c,14220,1a118,1d08e,14210,1a10c,14208,1a106,14360,1a1b8,1d0de,14330,1a19c,14318,1a18e,1430c,14306,1a1de,1438e,14140,1a0b0,1d05c,14120,1a098,1d04e,14110,1a08c,14108,1a086,14104,141b0,14198,1418c,140a0,1d02e,1a04c,1a046,14082,1cae0,1e578,1f2be,194c0,1ca70,1e53c,19460,1ca38,1e51e,12840,19430,12820,196e0,1cb78,1e5be,12cc0,19670,1cb3c,12c60,19638,12c30,12c18,12ee0,19778,1cbbe,12e70,1973c,12e38,12e1c,12f78,197be,12f3c,12fbe,1dac0,1ed70,1f6bc,1da60,1ed38,1f69e,1b440,1da30,1ed1c,1b420,1da18,1ed0e,1b410,1da0c,192c0,1c970,1e4bc,1b6c0,19260,1c938,1e49e,1b660,1db38,1ed9e,16c40,12420,19218,1c90e,16c20,1b618,16c10,126c0,19370,1c9bc,16ec0,12660,19338,1c99e,16e60,1b738,1db9e,16e30,12618,16e18,12770,193bc,16f70,12738,1939e,16f38,1b79e,16f1c,127bc,16fbc,1279e,16f9e,1d960,1ecb8,1f65e,1b240,1d930,1ec9c,1b220,1d918,1ec8e,1b210,1d90c,1b208,1b204,19160,1c8b8,1e45e,1b360,19130,1c89c,16640,12220,1d99c,1c88e,16620,12210,1910c,16610,1b30c,19106,12204,12360,191b8,1c8de,16760,12330,1919c,16730,1b39c,1918e,16718,1230c,12306,123b8,191de,167b8,1239c,1679c,1238e,1678e,167de,1b140,1d8b0,1ec5c,1b120,1d898,1ec4e,1b110,1d88c,1b108,1d886,1b104,1b102,12140,190b0,1c85c,16340,12120,19098,1c84e,16320,1b198,1d8ce,16310,12108,19086,16308,1b186,16304,121b0,190dc,163b0,12198,190ce,16398,1b1ce,1638c,12186,16386,163dc,163ce,1b0a0,1d858,1ec2e,1b090,1d84c,1b088,1d846,1b084,1b082,120a0,19058,1c82e,161a0,12090,1904c,16190,1b0cc,19046,16188,12084,16184,12082,120d8,161d8,161cc,161c6,1d82c,1d826,1b042,1902c,12048,160c8,160c4,160c2,18ac0,1c570,1e2bc,18a60,1c538,11440,18a30,1c51c,11420,18a18,11410,11408,116c0,18b70,1c5bc,11660,18b38,1c59e,11630,18b1c,11618,1160c,11770,18bbc,11738,18b9e,1171c,117bc,1179e,1cd60,1e6b8,1f35e,19a40,1cd30,1e69c,19a20,1cd18,1e68e,19a10,1cd0c,19a08,1cd06,18960,1c4b8,1e25e,19b60,18930,1c49c,13640,11220,1cd9c,1c48e,13620,19b18,1890c,13610,11208,13608,11360,189b8,1c4de,13760,11330,1cdde,13730,19b9c,1898e,13718,1130c,1370c,113b8,189de,137b8,1139c,1379c,1138e,113de,137de,1dd40,1eeb0,1f75c,1dd20,1ee98,1f74e,1dd10,1ee8c,1dd08,1ee86,1dd04,19940,1ccb0,1e65c,1bb40,19920,1eedc,1e64e,1bb20,1dd98,1eece,1bb10,19908,1cc86,1bb08,1dd86,19902,11140,188b0,1c45c,13340,11120,18898,1c44e,17740,13320,19998,1ccce,17720,1bb98,1ddce,18886,17710,13308,19986,17708,11102,111b0,188dc,133b0,11198,188ce,177b0,13398,199ce,17798,1bbce,11186,13386,111dc,133dc,111ce,177dc,133ce,1dca0,1ee58,1f72e,1dc90,1ee4c,1dc88,1ee46,1dc84,1dc82,198a0,1cc58,1e62e,1b9a0,19890,1ee6e,1b990,1dccc,1cc46,1b988,19884,1b984,19882,1b982,110a0,18858,1c42e,131a0,11090,1884c,173a0,13190,198cc,18846,17390,1b9cc,11084,17388,13184,11082,13182,110d8,1886e,131d8,110cc,173d8,131cc,110c6,173cc,131c6,110ee,173ee,1dc50,1ee2c,1dc48,1ee26,1dc44,1dc42,19850,1cc2c,1b8d0,19848,1cc26,1b8c8,1dc66,1b8c4,19842,1b8c2,11050,1882c,130d0,11048,18826,171d0,130c8,19866,171c8,1b8e6,11042,171c4,130c2,171c2,130ec,171ec,171e6,1ee16,1dc22,1cc16,19824,19822,11028,13068,170e8,11022,13062,18560,10a40,18530,10a20,18518,1c28e,10a10,1850c,10a08,18506,10b60,185b8,1c2de,10b30,1859c,10b18,1858e,10b0c,10b06,10bb8,185de,10b9c,10b8e,10bde,18d40,1c6b0,1e35c,18d20,1c698,18d10,1c68c,18d08,1c686,18d04,10940,184b0,1c25c,11b40,10920,1c6dc,1c24e,11b20,18d98,1c6ce,11b10,10908,18486,11b08,18d86,10902,109b0,184dc,11bb0,10998,184ce,11b98,18dce,11b8c,10986,109dc,11bdc,109ce,11bce,1cea0,1e758,1f3ae,1ce90,1e74c,1ce88,1e746,1ce84,1ce82,18ca0,1c658,19da0,18c90,1c64c,19d90,1cecc,1c646,19d88,18c84,19d84,18c82,19d82,108a0,18458,119a0,10890,1c66e,13ba0,11990,18ccc,18446,13b90,19dcc,10884,13b88,11984,10882,11982,108d8,1846e,119d8,108cc,13bd8,119cc,108c6,13bcc,119c6,108ee,119ee,13bee,1ef50,1f7ac,1ef48,1f7a6,1ef44,1ef42,1ce50,1e72c,1ded0,1ef6c,1e726,1dec8,1ef66,1dec4,1ce42,1dec2,18c50,1c62c,19cd0,18c48,1c626,1bdd0,19cc8,1ce66,1bdc8,1dee6,18c42,1bdc4,19cc2,1bdc2,10850,1842c,118d0,10848,18426,139d0,118c8,18c66,17bd0,139c8,19ce6,10842,17bc8,1bde6,118c2,17bc4,1086c,118ec,10866,139ec,118e6,17bec,139e6,17be6,1ef28,1f796,1ef24,1ef22,1ce28,1e716,1de68,1ef36,1de64,1ce22,1de62,18c28,1c616,19c68,18c24,1bce8,19c64,18c22,1bce4,19c62,1bce2,10828,18416,11868,18c36,138e8,11864,10822,179e8,138e4,11862,179e4,138e2,179e2,11876,179f6,1ef12,1de34,1de32,19c34,1bc74,1bc72,11834,13874,178f4,178f2,10540,10520,18298,10510,10508,10504,105b0,10598,1058c,10586,105dc,105ce,186a0,18690,1c34c,18688,1c346,18684,18682,104a0,18258,10da0,186d8,1824c,10d90,186cc,10d88,186c6,10d84,10482,10d82,104d8,1826e,10dd8,186ee,10dcc,104c6,10dc6,104ee,10dee,1c750,1c748,1c744,1c742,18650,18ed0,1c76c,1c326,18ec8,1c766,18ec4,18642,18ec2,10450,10cd0,10448,18226,11dd0,10cc8,10444,11dc8,10cc4,10442,11dc4,10cc2,1046c,10cec,10466,11dec,10ce6,11de6,1e7a8,1e7a4,1e7a2,1c728,1cf68,1e7b6,1cf64,1c722,1cf62,18628,1c316,18e68,1c736,19ee8,18e64,18622,19ee4,18e62,19ee2,10428,18216,10c68,18636,11ce8,10c64,10422,13de8,11ce4,10c62,13de4,11ce2,10436,10c76,11cf6,13df6,1f7d4,1f7d2,1e794,1efb4,1e792,1efb2,1c714,1cf34,1c712,1df74,1cf32,1df72,18614,18e34,18612,19e74,18e32,1bef4",
+"1f560,1fab8,1ea40,1f530,1fa9c,1ea20,1f518,1fa8e,1ea10,1f50c,1ea08,1f506,1ea04,1eb60,1f5b8,1fade,1d640,1eb30,1f59c,1d620,1eb18,1f58e,1d610,1eb0c,1d608,1eb06,1d604,1d760,1ebb8,1f5de,1ae40,1d730,1eb9c,1ae20,1d718,1eb8e,1ae10,1d70c,1ae08,1d706,1ae04,1af60,1d7b8,1ebde,15e40,1af30,1d79c,15e20,1af18,1d78e,15e10,1af0c,15e08,1af06,15f60,1afb8,1d7de,15f30,1af9c,15f18,1af8e,15f0c,15fb8,1afde,15f9c,15f8e,1e940,1f4b0,1fa5c,1e920,1f498,1fa4e,1e910,1f48c,1e908,1f486,1e904,1e902,1d340,1e9b0,1f4dc,1d320,1e998,1f4ce,1d310,1e98c,1d308,1e986,1d304,1d302,1a740,1d3b0,1e9dc,1a720,1d398,1e9ce,1a710,1d38c,1a708,1d386,1a704,1a702,14f40,1a7b0,1d3dc,14f20,1a798,1d3ce,14f10,1a78c,14f08,1a786,14f04,14fb0,1a7dc,14f98,1a7ce,14f8c,14f86,14fdc,14fce,1e8a0,1f458,1fa2e,1e890,1f44c,1e888,1f446,1e884,1e882,1d1a0,1e8d8,1f46e,1d190,1e8cc,1d188,1e8c6,1d184,1d182,1a3a0,1d1d8,1e8ee,1a390,1d1cc,1a388,1d1c6,1a384,1a382,147a0,1a3d8,1d1ee,14790,1a3cc,14788,1a3c6,14784,14782,147d8,1a3ee,147cc,147c6,147ee,1e850,1f42c,1e848,1f426,1e844,1e842,1d0d0,1e86c,1d0c8,1e866,1d0c4,1d0c2,1a1d0,1d0ec,1a1c8,1d0e6,1a1c4,1a1c2,143d0,1a1ec,143c8,1a1e6,143c4,143c2,143ec,143e6,1e828,1f416,1e824,1e822,1d068,1e836,1d064,1d062,1a0e8,1d076,1a0e4,1a0e2,141e8,1a0f6,141e4,141e2,1e814,1e812,1d034,1d032,1a074,1a072,1e540,1f2b0,1f95c,1e520,1f298,1f94e,1e510,1f28c,1e508,1f286,1e504,1e502,1cb40,1e5b0,1f2dc,1cb20,1e598,1f2ce,1cb10,1e58c,1cb08,1e586,1cb04,1cb02,19740,1cbb0,1e5dc,19720,1cb98,1e5ce,19710,1cb8c,19708,1cb86,19704,19702,12f40,197b0,1cbdc,12f20,19798,1cbce,12f10,1978c,12f08,19786,12f04,12fb0,197dc,12f98,197ce,12f8c,12f86,12fdc,12fce,1f6a0,1fb58,16bf0,1f690,1fb4c,169f8,1f688,1fb46,168fc,1f684,1f682,1e4a0,1f258,1f92e,1eda0,1e490,1fb6e,1ed90,1f6cc,1f246,1ed88,1e484,1ed84,1e482,1ed82,1c9a0,1e4d8,1f26e,1dba0,1c990,1e4cc,1db90,1edcc,1e4c6,1db88,1c984,1db84,1c982,1db82,193a0,1c9d8,1e4ee,1b7a0,19390,1c9cc,1b790,1dbcc,1c9c6,1b788,19384,1b784,19382,1b782,127a0,193d8,1c9ee,16fa0,12790,193cc,16f90,1b7cc,193c6,16f88,12784,16f84,12782,127d8,193ee,16fd8,127cc,16fcc,127c6,16fc6,127ee,1f650,1fb2c,165f8,1f648,1fb26,164fc,1f644,1647e,1f642,1e450,1f22c,1ecd0,1e448,1f226,1ecc8,1f666,1ecc4,1e442,1ecc2,1c8d0,1e46c,1d9d0,1c8c8,1e466,1d9c8,1ece6,1d9c4,1c8c2,1d9c2,191d0,1c8ec,1b3d0,191c8,1c8e6,1b3c8,1d9e6,1b3c4,191c2,1b3c2,123d0,191ec,167d0,123c8,191e6,167c8,1b3e6,167c4,123c2,167c2,123ec,167ec,123e6,167e6,1f628,1fb16,162fc,1f624,1627e,1f622,1e428,1f216,1ec68,1f636,1ec64,1e422,1ec62,1c868,1e436,1d8e8,1c864,1d8e4,1c862,1d8e2,190e8,1c876,1b1e8,1d8f6,1b1e4,190e2,1b1e2,121e8,190f6,163e8,121e4,163e4,121e2,163e2,121f6,163f6,1f614,1617e,1f612,1e414,1ec34,1e412,1ec32,1c834,1d874,1c832,1d872,19074,1b0f4,19072,1b0f2,120f4,161f4,120f2,161f2,1f60a,1e40a,1ec1a,1c81a,1d83a,1903a,1b07a,1e2a0,1f158,1f8ae,1e290,1f14c,1e288,1f146,1e284,1e282,1c5a0,1e2d8,1f16e,1c590,1e2cc,1c588,1e2c6,1c584,1c582,18ba0,1c5d8,1e2ee,18b90,1c5cc,18b88,1c5c6,18b84,18b82,117a0,18bd8,1c5ee,11790,18bcc,11788,18bc6,11784,11782,117d8,18bee,117cc,117c6,117ee,1f350,1f9ac,135f8,1f348,1f9a6,134fc,1f344,1347e,1f342,1e250,1f12c,1e6d0,1e248,1f126,1e6c8,1f366,1e6c4,1e242,1e6c2,1c4d0,1e26c,1cdd0,1c4c8,1e266,1cdc8,1e6e6,1cdc4,1c4c2,1cdc2,189d0,1c4ec,19bd0,189c8,1c4e6,19bc8,1cde6,19bc4,189c2,19bc2,113d0,189ec,137d0,113c8,189e6,137c8,19be6,137c4,113c2,137c2,113ec,137ec,113e6,137e6,1fba8,175f0,1bafc,1fba4,174f8,1ba7e,1fba2,1747c,1743e,1f328,1f996,132fc,1f768,1fbb6,176fc,1327e,1f764,1f322,1767e,1f762,1e228,1f116,1e668,1e224,1eee8,1f776,1e222,1eee4,1e662,1eee2,1c468,1e236,1cce8,1c464,1dde8,1cce4,1c462,1dde4,1cce2,1dde2,188e8,1c476,199e8,188e4,1bbe8,199e4,188e2,1bbe4,199e2,1bbe2,111e8,188f6,133e8,111e4,177e8,133e4,111e2,177e4,133e2,177e2,111f6,133f6,1fb94,172f8,1b97e,1fb92,1727c,1723e,1f314,1317e,1f734,1f312,1737e,1f732,1e214,1e634,1e212,1ee74,1e632,1ee72,1c434,1cc74,1c432,1dcf4,1cc72,1dcf2,18874,198f4,18872,1b9f4,198f2,1b9f2,110f4,131f4,110f2,173f4,131f2,173f2,1fb8a,1717c,1713e,1f30a,1f71a,1e20a,1e61a,1ee3a,1c41a,1cc3a,1dc7a,1883a,1987a,1b8fa,1107a,130fa,171fa,170be,1e150,1f0ac,1e148,1f0a6,1e144,1e142,1c2d0,1e16c,1c2c8,1e166,1c2c4,1c2c2,185d0,1c2ec,185c8,1c2e6,185c4,185c2,10bd0,185ec,10bc8,185e6,10bc4,10bc2,10bec,10be6,1f1a8,1f8d6,11afc,1f1a4,11a7e,1f1a2,1e128,1f096,1e368,1e124,1e364,1e122,1e362,1c268,1e136,1c6e8,1c264,1c6e4,1c262,1c6e2,184e8,1c276,18de8,184e4,18de4,184e2,18de2,109e8,184f6,11be8,109e4,11be4,109e2,11be2,109f6,11bf6,1f9d4,13af8,19d7e,1f9d2,13a7c,13a3e,1f194,1197e,1f3b4,1f192,13b7e,1f3b2,1e114,1e334,1e112,1e774,1e332,1e772,1c234,1c674,1c232,1cef4,1c672,1cef2,18474,18cf4,18472,19df4,18cf2,19df2,108f4,119f4,108f2,13bf4,119f2,13bf2,17af0,1bd7c,17a78,1bd3e,17a3c,17a1e,1f9ca,1397c,1fbda,17b7c,1393e,17b3e,1f18a,1f39a,1f7ba,1e10a,1e31a,1e73a,1ef7a,1c21a,1c63a,1ce7a,1defa,1843a,18c7a,19cfa,1bdfa,1087a,118fa,139fa,17978,1bcbe,1793c,1791e,138be,179be,178bc,1789e,1785e,1e0a8,1e0a4,1e0a2,1c168,1e0b6,1c164,1c162,182e8,1c176,182e4,182e2,105e8,182f6,105e4,105e2,105f6,1f0d4,10d7e,1f0d2,1e094,1e1b4,1e092,1e1b2,1c134,1c374,1c132,1c372,18274,186f4,18272,186f2,104f4,10df4,104f2,10df2,1f8ea,11d7c,11d3e,1f0ca,1f1da,1e08a,1e19a,1e3ba,1c11a,1c33a,1c77a,1823a,1867a,18efa,1047a,10cfa,11dfa,13d78,19ebe,13d3c,13d1e,11cbe,13dbe,17d70,1bebc,17d38,1be9e,17d1c,17d0e,13cbc,17dbc,13c9e,17d9e,17cb8,1be5e,17c9c,17c8e,13c5e,17cde,17c5c,17c4e,17c2e,1c0b4,1c0b2,18174,18172,102f4,102f2,1e0da,1c09a,1c1ba,1813a,1837a,1027a,106fa,10ebe,11ebc,11e9e,13eb8,19f5e,13e9c,13e8e,11e5e,13ede,17eb0,1bf5c,17e98,1bf4e,17e8c,17e86,13e5c,17edc,13e4e,17ece,17e58,1bf2e,17e4c,17e46,13e2e,17e6e,17e2c,17e26,10f5e,11f5c,11f4e,13f58,19fae,13f4c,13f46,11f2e,13f6e,13f2c,13f26",
+"1abe0,1d5f8,153c0,1a9f0,1d4fc,151e0,1a8f8,1d47e,150f0,1a87c,15078,1fad0,15be0,1adf8,1fac8,159f0,1acfc,1fac4,158f8,1ac7e,1fac2,1587c,1f5d0,1faec,15df8,1f5c8,1fae6,15cfc,1f5c4,15c7e,1f5c2,1ebd0,1f5ec,1ebc8,1f5e6,1ebc4,1ebc2,1d7d0,1ebec,1d7c8,1ebe6,1d7c4,1d7c2,1afd0,1d7ec,1afc8,1d7e6,1afc4,14bc0,1a5f0,1d2fc,149e0,1a4f8,1d27e,148f0,1a47c,14878,1a43e,1483c,1fa68,14df0,1a6fc,1fa64,14cf8,1a67e,1fa62,14c7c,14c3e,1f4e8,1fa76,14efc,1f4e4,14e7e,1f4e2,1e9e8,1f4f6,1e9e4,1e9e2,1d3e8,1e9f6,1d3e4,1d3e2,1a7e8,1d3f6,1a7e4,1a7e2,145e0,1a2f8,1d17e,144f0,1a27c,14478,1a23e,1443c,1441e,1fa34,146f8,1a37e,1fa32,1467c,1463e,1f474,1477e,1f472,1e8f4,1e8f2,1d1f4,1d1f2,1a3f4,1a3f2,142f0,1a17c,14278,1a13e,1423c,1421e,1fa1a,1437c,1433e,1f43a,1e87a,1d0fa,14178,1a0be,1413c,1411e,141be,140bc,1409e,12bc0,195f0,1cafc,129e0,194f8,1ca7e,128f0,1947c,12878,1943e,1283c,1f968,12df0,196fc,1f964,12cf8,1967e,1f962,12c7c,12c3e,1f2e8,1f976,12efc,1f2e4,12e7e,1f2e2,1e5e8,1f2f6,1e5e4,1e5e2,1cbe8,1e5f6,1cbe4,1cbe2,197e8,1cbf6,197e4,197e2,1b5e0,1daf8,1ed7e,169c0,1b4f0,1da7c,168e0,1b478,1da3e,16870,1b43c,16838,1b41e,1681c,125e0,192f8,1c97e,16de0,124f0,1927c,16cf0,1b67c,1923e,16c78,1243c,16c3c,1241e,16c1e,1f934,126f8,1937e,1fb74,1f932,16ef8,1267c,1fb72,16e7c,1263e,16e3e,1f274,1277e,1f6f4,1f272,16f7e,1f6f2,1e4f4,1edf4,1e4f2,1edf2,1c9f4,1dbf4,1c9f2,1dbf2,193f4,193f2,165c0,1b2f0,1d97c,164e0,1b278,1d93e,16470,1b23c,16438,1b21e,1641c,1640e,122f0,1917c,166f0,12278,1913e,16678,1b33e,1663c,1221e,1661e,1f91a,1237c,1fb3a,1677c,1233e,1673e,1f23a,1f67a,1e47a,1ecfa,1c8fa,1d9fa,191fa,162e0,1b178,1d8be,16270,1b13c,16238,1b11e,1621c,1620e,12178,190be,16378,1213c,1633c,1211e,1631e,121be,163be,16170,1b0bc,16138,1b09e,1611c,1610e,120bc,161bc,1209e,1619e,160b8,1b05e,1609c,1608e,1205e,160de,1605c,1604e,115e0,18af8,1c57e,114f0,18a7c,11478,18a3e,1143c,1141e,1f8b4,116f8,18b7e,1f8b2,1167c,1163e,1f174,1177e,1f172,1e2f4,1e2f2,1c5f4,1c5f2,18bf4,18bf2,135c0,19af0,1cd7c,134e0,19a78,1cd3e,13470,19a3c,13438,19a1e,1341c,1340e,112f0,1897c,136f0,11278,1893e,13678,19b3e,1363c,1121e,1361e,1f89a,1137c,1f9ba,1377c,1133e,1373e,1f13a,1f37a,1e27a,1e6fa,1c4fa,1cdfa,189fa,1bae0,1dd78,1eebe,174c0,1ba70,1dd3c,17460,1ba38,1dd1e,17430,1ba1c,17418,1ba0e,1740c,132e0,19978,1ccbe,176e0,13270,1993c,17670,1bb3c,1991e,17638,1321c,1761c,1320e,1760e,11178,188be,13378,1113c,17778,1333c,1111e,1773c,1331e,1771e,111be,133be,177be,172c0,1b970,1dcbc,17260,1b938,1dc9e,17230,1b91c,17218,1b90e,1720c,17206,13170,198bc,17370,13138,1989e,17338,1b99e,1731c,1310e,1730e,110bc,131bc,1109e,173bc,1319e,1739e,17160,1b8b8,1dc5e,17130,1b89c,17118,1b88e,1710c,17106,130b8,1985e,171b8,1309c,1719c,1308e,1718e,1105e,130de,171de,170b0,1b85c,17098,1b84e,1708c,17086,1305c,170dc,1304e,170ce,17058,1b82e,1704c,17046,1302e,1706e,1702c,17026,10af0,1857c,10a78,1853e,10a3c,10a1e,10b7c,10b3e,1f0ba,1e17a,1c2fa,185fa,11ae0,18d78,1c6be,11a70,18d3c,11a38,18d1e,11a1c,11a0e,10978,184be,11b78,1093c,11b3c,1091e,11b1e,109be,11bbe,13ac0,19d70,1cebc,13a60,19d38,1ce9e,13a30,19d1c,13a18,19d0e,13a0c,13a06,11970,18cbc,13b70,11938,18c9e,13b38,1191c,13b1c,1190e,13b0e,108bc,119bc,1089e,13bbc,1199e,13b9e,1bd60,1deb8,1ef5e,17a40,1bd30,1de9c,17a20,1bd18,1de8e,17a10,1bd0c,17a08,1bd06,17a04,13960,19cb8,1ce5e,17b60,13930,19c9c,17b30,1bd9c,19c8e,17b18,1390c,17b0c,13906,17b06,118b8,18c5e,139b8,1189c,17bb8,1399c,1188e,17b9c,1398e,17b8e,1085e,118de,139de,17bde,17940,1bcb0,1de5c,17920,1bc98,1de4e,17910,1bc8c,17908,1bc86,17904,17902,138b0,19c5c,179b0,13898,19c4e,17998,1bcce,1798c,13886,17986,1185c,138dc,1184e,179dc,138ce,179ce,178a0,1bc58,1de2e,17890,1bc4c,17888,1bc46,17884,17882,13858,19c2e,178d8,1384c,178cc,13846,178c6,1182e,1386e,178ee,17850,1bc2c,17848,1bc26,17844,17842,1382c,1786c,13826,17866,17828,1bc16,17824,17822,13816,17836,10578,182be,1053c,1051e,105be,10d70,186bc,10d38,1869e,10d1c,10d0e,104bc,10dbc,1049e,10d9e,11d60,18eb8,1c75e,11d30,18e9c,11d18,18e8e,11d0c,11d06,10cb8,1865e,11db8,10c9c,11d9c,10c8e,11d8e,1045e,10cde,11dde,13d40,19eb0,1cf5c,13d20,19e98,1cf4e,13d10,19e8c,13d08,19e86,13d04,13d02,11cb0,18e5c,13db0,11c98,18e4e,13d98,19ece,13d8c,11c86,13d86,10c5c,11cdc,10c4e,13ddc,11cce,13dce,1bea0,1df58,1efae,1be90,1df4c,1be88,1df46,1be84,1be82,13ca0,19e58,1cf2e,17da0,13c90,19e4c,17d90,1becc,19e46,17d88,13c84,17d84,13c82,17d82,11c58,18e2e,13cd8,11c4c,17dd8,13ccc,11c46,17dcc,13cc6,17dc6,10c2e,11c6e,13cee,17dee,1be50,1df2c,1be48,1df26,1be44,1be42,13c50,19e2c,17cd0,13c48,19e26,17cc8,1be66,17cc4,13c42,17cc2,11c2c,13c6c,11c26,17cec,13c66,17ce6,1be28,1df16,1be24,1be22,13c28,19e16,17c68,13c24,17c64,13c22,17c62,11c16,13c36,17c76,1be14,1be12,13c14,17c34,13c12,17c32,102bc,1029e,106b8,1835e,1069c,1068e,1025e,106de,10eb0,1875c,10e98,1874e,10e8c,10e86,1065c,10edc,1064e,10ece,11ea0,18f58,1c7ae,11e90,18f4c,11e88,18f46,11e84,11e82,10e58,1872e,11ed8,18f6e,11ecc,10e46,11ec6,1062e,10e6e,11eee,19f50,1cfac,19f48,1cfa6,19f44,19f42,11e50,18f2c,13ed0,19f6c,18f26,13ec8,11e44,13ec4,11e42,13ec2,10e2c,11e6c,10e26,13eec,11e66,13ee6,1dfa8,1efd6,1dfa4,1dfa2,19f28,1cf96,1bf68,19f24,1bf64,19f22,1bf62,11e28,18f16,13e68,11e24,17ee8,13e64,11e22,17ee4,13e62,17ee2,10e16,11e36,13e76,17ef6,1df94,1df92,19f14,1bf34,19f12,1bf32,11e14,13e34,11e12,17e74,13e32,17e72,1df8a,19f0a,1bf1a,11e0a,13e1a,17e3a,1035c,1034e,10758,183ae,1074c,10746,1032e,1076e,10f50,187ac,10f48,187a6,10f44,10f42,1072c,10f6c,10726,10f66,18fa8,1c7d6,18fa4,18fa2,10f28,18796,11f68,18fb6,11f64,10f22,11f62,10716,10f36,11f76,1cfd4,1cfd2,18f94,19fb4,18f92,19fb2,10f14,11f34,10f12,13f74,11f32,13f72,1cfca,18f8a,19f9a,10f0a,11f1a,13f3a,103ac,103a6,107a8,183d6,107a4,107a2,10396,107b6,187d4,187d2,10794,10fb4,10792,10fb2,1c7ea"],
+r:[
+"322,3a2,3b2,332,372,37a,33a,3ba,39a,3da,3ca,38a,30a,31a,312,392,3d2,3d6,3d4,394,3b4,3a4,3a6,3ae,3ac,3a8,328,32c,32e,326,336,3b6,396,316,314,334,374,364,366,36e,36c,368,348,358,35c,35e,34e,34c,344,346,342,362",
+"2ce,24e,26e,22e,226,236,216,212,21a,23a,232,222,262,272,27a,2fa,2f2,2f6,276,274,264,266,246,242,2c2,2e2,2e6,2e4,2ec,26c,22c,228,268,2e8,2c8,2cc,2c4,2c6,286,28e,28c,29c,298,2b8,2b0,290,2d0,250,258,25c,2dc,2de"]};
+/* ---------- GS1 合成シンボル（CC-A / CC-B）デコーダ ----------
+   ISO/IEC 24723。DataBar 等の直上（または直下）にある 2D 部分を、
+   行パターン検出 → コードワード → GF(929) 誤り訂正 → GS1 汎用ビット列の復号 の順で読む。
+   パターン表は BWIPP（MIT, Terry Burton）の micropdf417 / gs1-cc から抽出。 */
+const CCDecoder=(function(){
+  // ---- 表 ----
+  const CW=new Map(), RLR=new Map(), RC=new Map();
+  CC_TBL.c.forEach((s,cl)=>s.split(",").forEach((h,v)=>CW.set(parseInt(h,16),cl*1000+v)));
+  CC_TBL.r[0].split(",").forEach((h,i)=>RLR.set(parseInt(h,16),i));
+  CC_TBL.r[1].split(",").forEach((h,i)=>RC.set(parseInt(h,16),i));
+  //            c  r ecw rl rc rr
+  const CCA=[[2,5,4,39,0,19],[2,6,4,1,0,33],[2,7,5,32,0,12],[2,8,5,8,0,40],[2,9,6,14,0,46],[2,10,6,43,0,23],[2,12,7,20,0,52],
+    [3,4,4,11,43,23],[3,5,5,1,33,13],[3,6,6,5,37,17],[3,7,7,15,47,27],[3,8,7,21,1,33],
+    [4,3,4,40,20,52],[4,4,5,43,23,3],[4,5,6,46,26,6],[4,6,7,34,14,46],[4,7,8,29,9,41]];
+  const CCB=[[2,8,8,1,0,1],[2,11,9,1,0,9],[2,14,9,8,0,8],[2,17,10,36,0,36],[2,20,11,19,0,19],[2,23,13,9,0,17],[2,26,15,27,0,35],
+    [3,6,12,1,1,1],[3,8,14,7,7,7],[3,10,16,15,15,15],[3,12,18,25,25,25],[3,15,21,37,37,37],[3,20,26,1,17,33],[3,26,32,1,9,17],[3,32,38,21,29,37],[3,38,44,15,31,47],[3,44,50,1,25,49],
+    [4,4,8,47,19,43],[4,6,12,1,1,1],[4,8,14,7,7,7],[4,10,16,15,15,15],[4,12,18,25,25,25],[4,15,21,37,37,37],[4,20,26,1,17,33],[4,26,32,1,9,17],[4,32,38,21,29,37],[4,38,44,15,31,47],[4,44,50,1,25,49]];
+  const BITCAP_A={2:[167,138,118,108,88,78,59],3:[167,138,118,98,78],4:[197,167,138,108,78]};
+  // 行の並び（L=左RAP, C=中央RAP, W=コードワード, R=右RAP+終端バー）
+  const GRAM=[
+    {id:"A2",c:2,cca:true, seq:"LWWR"},
+    {id:"A3",c:3,cca:true, seq:"WCWWR"},
+    {id:"A4",c:4,cca:true, seq:"LWWCWWR"},
+    {id:"B3",c:3,cca:false,seq:"LWCWWR"}
+  ];
+  const EL={L:{n:6,m:10},C:{n:6,m:10},W:{n:8,m:17},R:{n:7,m:11}};
+  GRAM.forEach(g=>{g.runs=0;g.mods=0;for(const ch of g.seq){g.runs+=EL[ch].n;g.mods+=EL[ch].m}});
+
+  // ---- 1要素（ラン列）→ ビットパターン ----
+  function sampleBits(r,o,n,m){
+    let W=0;for(let i=0;i<n;i++)W+=r[o+i];
+    let v=0,pos=0,k=0,acc=r[o];
+    for(let j=0;j<m;j++){
+      const x=(j+0.5)*W/m;
+      while(x>acc&&k<n-1){k++;acc+=r[o+k]}
+      v=v*2+((k%2===0)?1:0);
+    }
+    return v;
+  }
+  function roundBits(r,o,n,m){
+    let W=0;for(let i=0;i<n;i++)W+=r[o+i];
+    const w=[];let s=0;
+    for(let i=0;i<n;i++){let q=Math.max(1,Math.round(r[o+i]*m/W));w.push(q);s+=q}
+    while(s!==m){ // 誤差の大きい要素で合わせる
+      let bi=-1,be=-1e9;
+      for(let i=0;i<n;i++){const e=(s>m)?(w[i]-r[o+i]*m/W):(r[o+i]*m/W-w[i]);if(e>be&&(s<m||w[i]>1)){be=e;bi=i}}
+      if(bi<0)return -1; w[bi]+=(s>m)?-1:1; s+=(s>m)?-1:1;
+    }
+    let v=0;for(let i=0;i<n;i++)for(let q=0;q<w[i];q++)v=v*2+((i%2===0)?1:0);
+    return v;
+  }
+  function look(map,r,o,n,m){
+    let v=sampleBits(r,o,n,m);if(map.has(v))return map.get(v);
+    v=roundBits(r,o,n,m);if(v>=0&&map.has(v))return map.get(v);
+    return -1;
+  }
+  function lookR(r,o){ // 右RAP(10)+終端バー(1) = 11モジュール, 7ラン
+    let v=sampleBits(r,o,7,11);if((v&1)&&RLR.has(v>>1))return RLR.get(v>>1);
+    v=roundBits(r,o,7,11);if(v>=0&&(v&1)&&RLR.has(v>>1))return RLR.get(v>>1);
+    return -1;
+  }
+
+  // ---- ラン列から行を探す ----
+  function rowsFromRuns(runs,first,out){
+    // runs[i] の色: first が 1(バー) なら偶数番目がバー
+    for(let s=0;s<runs.length;s++){
+      if(((s%2===0)?first:1-first)!==1) continue; // バー始まりのみ
+      for(const g of GRAM){
+        if(s+g.runs>runs.length) continue;
+        let o=s,ok=true,L=-1,C=-1,R=-1,cl=-1,cws=[],wsum=0;
+        let tot=0;for(let i=0;i<g.runs;i++)tot+=runs[s+i];
+        const mod=tot/g.mods;
+        for(const ch of g.seq){
+          const e=EL[ch];let w=0;for(let i=0;i<e.n;i++)w+=runs[o+i];
+          if(Math.abs(w/mod-e.m)>e.m*0.22){ok=false;break}
+          if(ch==="W"){const x=look(CW,runs,o,8,17);if(x<0){ok=false;break}const c=(x/1000)|0;if(cl<0)cl=c;else if(cl!==c){ok=false;break}cws.push(x%1000)}
+          else if(ch==="L"){L=look(RLR,runs,o,6,10);if(L<0){ok=false;break}}
+          else if(ch==="C"){C=look(RC,runs,o,6,10);if(C<0){ok=false;break}}
+          else {R=lookR(runs,o);if(R<0){ok=false;break}}
+          o+=e.n;
+        }
+        if(ok) out.push({g:g.id,L,C,R,cl,cws});
+      }
+    }
+  }
+
+  // ---- 走査線の取り出しと二値化 ----
+  function profile(gray,w,h,ax,ay,bx,by,step,band,sig){
+    const len=Math.hypot(bx-ax,by-ay),n=Math.max(2,Math.floor(len/step));
+    const raw=new Float32Array(n),dx=(bx-ax)/(n-1),dy=(by-ay)/(n-1);
+    const qx=-dy/Math.hypot(dx,dy),qy=dx/Math.hypot(dx,dy); // 線に直交
+    const offs=band>0.6?[-band,0,band]:[0];
+    for(let i=0;i<n;i++){
+      let acc=0,cnt=0;
+      for(const o of offs){
+        const x=ax+dx*i+qx*o,y=ay+dy*i+qy*o;
+        if(x<0||y<0||x>=w-1||y>=h-1)continue;
+        const x0=x|0,y0=y|0,fx=x-x0,fy=y-y0,k=y0*w+x0;
+        acc+=(gray[k]*(1-fx)+gray[k+1]*fx)*(1-fy)+(gray[k+w]*(1-fx)+gray[k+w+1]*fx)*fy;cnt++;
+      }
+      raw[i]=cnt?acc/cnt:NaN;
+    }
+    if(!(sig>0.5))return raw;
+    // 線に沿ったガウス平滑化
+    const r=Math.ceil(sig*2.5),ker=[];let ks=0;for(let j=-r;j<=r;j++){const v=Math.exp(-j*j/(2*sig*sig));ker.push(v);ks+=v}
+    const p=new Float32Array(n);
+    for(let i=0;i<n;i++){let a=0,ws=0;for(let j=-r;j<=r;j++){const v=raw[i+j];if(v===undefined||v!==v)continue;a+=v*ker[j+r];ws+=ker[j+r]}p[i]=ws?a/ws:NaN}
+    return p;
+  }
+  function thresholds(p,win){
+    const n=p.length,thr=new Float32Array(n),W=2*win+1;
+    const fmin=new Float32Array(n),fmax=new Float32Array(n),bmin=new Float32Array(n),bmax=new Float32Array(n);
+    for(let i=0;i<n;i++){const v=p[i]!==p[i]?NaN:p[i];const st=i%W===0;
+      fmin[i]=(st||!(fmin[i-1]<=v))?(v!==v?1e9:(st?v:Math.min(fmin[i-1],v))):fmin[i-1];
+      fmax[i]=(st||!(fmax[i-1]>=v))?(v!==v?-1e9:(st?v:Math.max(fmax[i-1],v))):fmax[i-1];
+      if(v!==v){if(st){fmin[i]=1e9;fmax[i]=-1e9}}
+    }
+    for(let i=n-1;i>=0;i--){const v=p[i];const en=(i%W===W-1)||i===n-1;
+      const vv=v!==v;bmin[i]=en?(vv?1e9:v):Math.min(bmin[i+1],vv?1e9:v);bmax[i]=en?(vv?-1e9:v):Math.max(bmax[i+1],vv?-1e9:v)}
+    for(let i=0;i<n;i++){const a=Math.max(0,i-win),b=Math.min(n-1,i+win);
+      const mn=Math.min(bmin[a],fmin[b]),mx=Math.max(bmax[a],fmax[b]);thr[i]=(mx-mn<24)?-1:(mx+mn)/2}
+    return thr;
+  }
+  function runsOf(p,inv,thr){
+    const n=p.length;
+    const runs=[];let first=-1,start=0,cur=-1;
+    for(let i=0;i<n;i++){
+      const v=p[i];if(v!==v||thr[i]<0){if(cur>=0){runs.push(i-start);}cur=-2;continue}
+      const dark=inv?(v>thr[i]):(v<thr[i]);const c=dark?1:0;
+      if(cur<0){cur=c;start=i;if(first<0)first=c;continue}
+      if(c!==cur){
+        const t=thr[i],a=p[i-1],b=v,f=(a===b)?0.5:(t-a)/(b-a);
+        const edge=i-1+Math.min(1,Math.max(0,f));
+        runs.push(edge-start);start=edge;cur=c;
+      }
+    }
+    if(cur>=0)runs.push(n-start);
+    return {runs,first};
+  }
+  function mergeTiny(runs,first,minw){ // 細いランを前後と1本にまとめる（1パス）
+    const out=[];let f=first,i=0;
+    while(i<runs.length&&runs[i]<minw){i++;f=1-f} // 先頭の細いランは捨てる
+    for(;i<runs.length;i++){
+      const v=runs[i];
+      if(v<minw&&out.length&&i+1<runs.length){out[out.length-1]+=v+runs[i+1];i++;continue}
+      out.push(v);
+    }
+    return {runs:out,first:f};
+  }
+  // ---- GF(929) 誤り訂正（zxing の PDF417 ErrorCorrection を移植） ----
+  const EXP=new Int32Array(929),LOG=new Int32Array(929);
+  {let x=1;for(let i=0;i<929;i++){EXP[i]=x;x=(x*3)%929}for(let i=0;i<928;i++)LOG[EXP[i]]=i}
+  const add=(a,b)=>(a+b)%929,sub=(a,b)=>(929+a-b)%929,inv=a=>EXP[928-LOG[a]];
+  const mul=(a,b)=>(a===0||b===0)?0:EXP[(LOG[a]+LOG[b])%928];
+  function P(c){let i=0;while(i<c.length-1&&c[i]===0)i++;return i?c.slice(i):c.slice()}
+  const deg=p=>p.length-1, coef=(p,d)=>p[p.length-1-d], isZ=p=>p[0]===0;
+  function ev(p,a){if(a===0)return coef(p,0);let r=0;if(a===1){for(const c of p)r=add(r,c);return r}r=p[0];for(let i=1;i<p.length;i++)r=add(mul(a,r),p[i]);return r}
+  function padd(a,b){if(isZ(a))return b;if(isZ(b))return a;let s=a,l=b;if(s.length>l.length){s=b;l=a}const d=l.length-s.length,r=l.slice(0,d);for(let i=d;i<l.length;i++)r.push(add(s[i-d],l[i]));return P(r)}
+  const neg=p=>P(p.map(c=>(929-c)%929)), psub=(a,b)=>isZ(b)?a:padd(a,neg(b));
+  function pmul(a,b){if(isZ(a)||isZ(b))return[0];const r=new Array(a.length+b.length-1).fill(0);for(let i=0;i<a.length;i++)for(let j=0;j<b.length;j++)r[i+j]=add(r[i+j],mul(a[i],b[j]));return P(r)}
+  const pscale=(p,s)=>s===0?[0]:P(p.map(c=>mul(c,s)));
+  function mono(d,c){if(c===0)return[0];const r=new Array(d+1).fill(0);r[0]=c;return r}
+  function pmulMono(p,d,c){if(c===0)return[0];const r=p.map(x=>mul(x,c));for(let i=0;i<d;i++)r.push(0);return P(r)}
+  function rsDecode(rec,k){
+    const p=P(rec.slice()),S=new Array(k);let err=false;
+    for(let i=k;i>0;i--){const e=ev(p,EXP[i]);S[k-i]=e;if(e)err=true}
+    if(!err)return 0;
+    let a=mono(k,1),b=P(S);if(deg(a)<deg(b)){const t=a;a=b;b=t}
+    let rL=a,r=b,tL=[0],t=[1];
+    while(deg(r)>=k/2){
+      const rLL=rL,tLL=tL;rL=r;tL=t;
+      if(isZ(rL))return -1;
+      r=rLL;let q=[0];const dlt=inv(coef(rL,deg(rL)));
+      while(deg(r)>=deg(rL)&&!isZ(r)){const dd=deg(r)-deg(rL),sc=mul(coef(r,deg(r)),dlt);q=padd(q,mono(dd,sc));r=psub(r,pmulMono(rL,dd,sc))}
+      t=neg(psub(pmul(q,tL),tLL));
+    }
+    const s0=coef(t,0);if(s0===0)return -1;
+    const iv=inv(s0),sigma=pscale(t,iv),omega=pscale(r,iv);
+    const ne=deg(sigma),locs=[];
+    for(let i=1;i<929&&locs.length<ne;i++)if(ev(sigma,i)===0)locs.push(inv(i));
+    if(locs.length!==ne)return -1;
+    const fd=[];for(let i=1;i<=ne;i++)fd[ne-i]=mul(i,coef(sigma,i));
+    const fdp=P(fd.length?fd:[0]);
+    for(const L of locs){
+      const xi=inv(L),num=sub(0,ev(omega,xi)),den=inv(ev(fdp,xi)),mag=mul(num,den);
+      const pos=rec.length-1-LOG[L];if(pos<0)return -1;
+      rec[pos]=sub(rec[pos],mag);
+    }
+    return ne;
+  }
+
+  // ---- コードワード → ビット列 ----
+  function bitsCCA(cws,bitcap){
+    let bits="",c=0,b=0;
+    while(b<bitcap){
+      const bsl=Math.min(69,bitcap-b),csl=Math.floor(bsl/10)+1;
+      let v=0n;for(let i=0;i<csl;i++){const x=cws[c+i];if(x===undefined||x>927)return null;v=v*928n+BigInt(x)}
+      if(v>=(1n<<BigInt(bsl)))return null;
+      bits+=v.toString(2).padStart(bsl,"0");b+=bsl;c+=csl;
+    }
+    return bits;
+  }
+  function bitsCCB(cws){
+    if(cws[0]!==920||(cws[1]!==924&&cws[1]!==901))return null;
+    const bytes=[];let i=2;
+    const end=(()=>{let e=cws.length;for(let j=2;j<cws.length;j++)if(cws[j]>=900){e=j;break}return e})();
+    while(i+5<=end&&(cws[1]===924||end-i>5||(end-i===5&&cws[1]===924))){
+      let v=0n;for(let j=0;j<5;j++)v=v*900n+BigInt(cws[i+j]);
+      const six=[];for(let j=0;j<6;j++){six.unshift(Number(v%256n));v/=256n}
+      bytes.push(...six);i+=5;
+    }
+    for(;i<end;i++){if(cws[i]>255)return null;bytes.push(cws[i])}
+    return bytes.map(x=>x.toString(2).padStart(8,"0")).join("");
+  }
+
+  // ---- GS1 汎用ビット列の復号 ----
+  const FNC="\u001d";
+  function gpfDecode(bits,pos,mode){
+    let out="";const L=bits.length;
+    const rd=n=>{const v=parseInt(bits.substr(pos,n),2);pos+=n;return v};
+    const pk=n=>parseInt(bits.substr(pos,n),2);
+    while(pos<L){
+      const rem=L-pos;
+      if(mode==="N"){
+        if(rem>=7){
+          if(pk(4)===0){pos+=4;mode="A";continue}
+          const v=rd(7)-8;if(v<0)return null;const d1=(v/11)|0,d2=v%11;
+          out+=(d1===10?FNC:String(d1))+(d2===10?FNC:String(d2));
+        }else if(rem>=4){const v=rd(4);if(v===0){mode="A";break}out+=String(v-1);break}
+        else break;
+      }else if(mode==="A"){
+        if(rem<3)break;
+        if(pk(3)===0){pos+=3;mode="N";continue}
+        if(rem<5)break;
+        const v5=pk(5);
+        if(v5===4){pos+=5;mode="I";continue}
+        if(v5>=5&&v5<=14){pos+=5;out+=String.fromCharCode(48+v5-5);continue}
+        if(v5===15){pos+=5;out+=FNC;mode="N";continue}
+        if(rem<6)break;
+        const v6=rd(6);
+        if(v6>=32&&v6<=57)out+=String.fromCharCode(65+v6-32);
+        else if(v6===58)out+="*";
+        else if(v6>=59&&v6<=62)out+=String.fromCharCode(44+v6-59);
+        else return null;
+      }else{ // ISO646
+        if(rem<3)break;
+        if(pk(3)===0){pos+=3;mode="N";continue}
+        if(rem<5)break;
+        const v5=pk(5);
+        if(v5===4){pos+=5;mode="A";continue}
+        if(v5>=5&&v5<=14){pos+=5;out+=String.fromCharCode(48+v5-5);continue}
+        if(v5===15){pos+=5;out+=FNC;mode="N";continue}
+        if(rem<7)break;
+        const v7=pk(7);
+        if(v7>=64&&v7<=89){pos+=7;out+=String.fromCharCode(v7+1);continue}
+        if(v7>=90&&v7<=115){pos+=7;out+=String.fromCharCode(v7+7);continue}
+        if(rem<8)break;
+        const v8=rd(8);
+        if(v8===232)out+="!";else if(v8===233)out+='"';
+        else if(v8>=234&&v8<=244)out+=String.fromCharCode(v8-197);
+        else if(v8>=245&&v8<=250)out+=String.fromCharCode(v8-187);
+        else if(v8===251)out+="_";else if(v8===252)out+=" ";
+        else return null;
+      }
+    }
+    return out;
+  }
+  // AI の長さ（固定長のもの）。それ以外は FNC1 まで
+  function aiInfo(s){
+    const two=s.substr(0,2),n2=+two;
+    const FIX2={"00":18,"01":14,"02":14,"03":14,"04":16,"11":6,"12":6,"13":6,"14":6,"15":6,"16":6,"17":6,"18":6,"19":6,"20":2,"41":13};
+    if(/^(00|01|02|03|04|1[1-9]|20)$/.test(two))return {len:2,fix:FIX2[two]};
+    if(/^(10|21|22|30|37|9\d)$/.test(two))return {len:2,fix:0};
+    if(/^(23|24|25|40|42|71|72)/.test(s))return {len:3,fix:0};
+    if(/^41/.test(s))return {len:3,fix:13};
+    if(/^(3[1-6])/.test(s))return {len:4,fix:6};
+    if(/^(39|43|70|80|81|82)/.test(s))return {len:4,fix:0};
+    if(/^7003/.test(s))return {len:4,fix:10};
+    return {len:2,fix:0};
+  }
+  function parseAIs(str){ // FNC1 区切りの AI 連結 → [[ai,val]...]
+    const out=[];let i=0;
+    while(i<str.length){
+      if(str[i]===FNC){i++;continue}
+      const inf=aiInfo(str.substr(i,4));const ai=str.substr(i,inf.len);if(!/^\d+$/.test(ai))return null;i+=inf.len;
+      let val;
+      if(inf.fix){val=str.substr(i,inf.fix);i+=inf.fix}
+      else{let j=str.indexOf(FNC,i);if(j<0)j=str.length;val=str.slice(i,j);i=j}
+      if(!val)return null;
+      out.push([ai,val]);
+    }
+    return out;
+  }
+  function decodeBits(bits){
+    let pos=0;const ais=[];
+    if(bits[0]==="1"&&bits[1]==="0"){ // 方式 10：(11)/(17) と (10)
+      pos=2;
+      if(bits.substr(pos,2)==="11"){pos+=2}
+      else{
+        const v=parseInt(bits.substr(pos,16),2);pos+=16;
+        const yy=Math.floor(v/384),mm=Math.floor((v%384)/32)+1,dd=v%32;
+        if(yy>99||mm>12||dd>31)return null;
+        const ai=bits[pos]==="1"?"17":"11";pos+=1;
+        ais.push([ai,String(yy).padStart(2,"0")+String(mm).padStart(2,"0")+String(dd).padStart(2,"0")]);
+      }
+      const g=gpfDecode(bits,pos,"N");if(g===null)return null;
+      const k=g.indexOf(FNC);const lot=k<0?g:g.slice(0,k);
+      if(lot)ais.push(["10",lot]);
+      if(k>=0){const r=parseAIs(g.slice(k+1));if(r===null)return null;ais.push(...r)}
+    }else if(bits[0]==="0"){
+      const g=gpfDecode(bits,1,"N");if(g===null)return null;
+      const r=parseAIs(g);if(r===null)return null;ais.push(...r);
+    }else return null; // 方式 11（AI 90）は未対応
+    if(!ais.length)return null;
+    return ais;
+  }
+
+  // ---- 本体：直線部の四隅から 2D 部を探す ----
+  function scanAt(gray,w,h,cx,cy,Lq,thq,th,opt){
+    const ex=Math.cos(th),ey=Math.sin(th),nx=ey,ny=-ex;
+    const cosd=Math.abs(Math.cos(th-thq));
+    const Lp=Math.min(Lq*1.3,Lq/Math.max(0.5,cosd));
+    const ux=ex*Lp,uy=ey*Lp;
+    const X=Lp/(opt.linMods||74);
+    const step=Math.max(0.35,Math.min(1,X/4));
+    const win=Math.max(8,Math.round(X*12/step));
+    const found=[];
+    const ox=cx-ux/2,oy=cy-uy/2; // 中心線の左端
+    for(const sgn of [1,-1]){
+      for(let d=3*X;d<=40*X;d+=Math.max(0.5,X/2)){
+        const px=nx*sgn*d,py=ny*sgn*d;
+        const ax=ox+px-ex*14*X,ay=oy+py-ey*14*X,bx=ox+ux+px+ex*12*X,by=oy+uy+py+ey*12*X;
+        const p=profile(gray,w,h,ax,ay,bx,by,step,X*0.35,X*0.18/step);
+        const thr=thresholds(p,win);
+        for(const iv of [false,true]){
+          const ro=runsOf(p,iv,thr);
+          for(const mw of [0,0.45*X/step]){
+            const {runs,first}=mw?mergeTiny(ro.runs,ro.first,mw):ro;
+            if(runs.length<20)continue;
+            const rows=[];rowsFromRuns(runs,first,rows);
+            for(const r of rows){r.side=sgn;r.inv=iv;found.push(r)}
+          }
+        }
+      }
+    }
+    return found;
+  }
+  function solve(found,opt){
+    if(!found.length)return null;
+    const votes=new Map();
+    for(const r of found){
+      const key=[r.g,r.L,r.C,r.R,r.cl].join(":");
+      let e=votes.get(key);if(!e){e={g:r.g,L:r.L,C:r.C,R:r.R,cl:r.cl,cnt:0,col:r.cws.map(()=>new Map())};votes.set(key,e)}
+      e.cnt++;r.cws.forEach((v,i)=>e.col[i].set(v,(e.col[i].get(v)||0)+1));
+    }
+    const cands=[];
+    for(const g of GRAM){
+      for(const m of (g.cca?CCA:CCB)){
+        const [c,r,k,rl,rc,rr]=m;if(c!==g.c)continue;
+        const rowsArr=new Array(r).fill(null);let hit=0,bad=0;
+        for(const e of votes.values()){
+          if(e.g!==g.id)continue;
+          const i=((e.R-rr+1)%52+52)%52;
+          if(i>=r){bad+=e.cnt;continue}
+          if(e.L>=0&&((i+rl-1)%52+52)%52!==e.L){bad+=e.cnt;continue}
+          if(e.C>=0&&((i+rc-1)%52+52)%52!==e.C){bad+=e.cnt;continue}
+          if(((i+rl-1)%3+3)%3!==e.cl){bad+=e.cnt;continue}
+          if(!rowsArr[i]||rowsArr[i].cnt<e.cnt)rowsArr[i]=e;
+          hit+=e.cnt;
+        }
+        const have=rowsArr.filter(Boolean).length;
+        if(!have)continue;
+        cands.push({g,m,rowsArr,hit,bad,have});
+      }
+    }
+    if(opt.debug)opt.debug.cands=cands;
+    cands.sort((a,b)=>(b.have/b.m[1])-(a.have/a.m[1])||b.hit-a.hit);
+    for(const cd of cands){
+      const [c,r,k]=cd.m;
+      const cws=[];let miss=0;
+      for(let i=0;i<r;i++){
+        const e=cd.rowsArr[i];
+        for(let j=0;j<c;j++){
+          if(!e){cws.push(0);miss++;continue}
+          let best=0,bc=-1;for(const [v,n] of e.col[j])if(n>bc){bc=n;best=v}
+          cws.push(best);
+        }
+      }
+      if(miss*2>k)continue; // 欠けは誤りとして訂正（k/2 まで）
+      const fix=cws.slice();const ne=rsDecode(fix,k);if(ne<0)continue;
+      if(ne*2>k)continue;
+      const data=fix.slice(0,r*c-k);
+      let bits=null;
+      if(cd.g.cca){const caps=BITCAP_A[c];const cap=caps[[...CCA].filter(x=>x[0]===c).reverse().findIndex(x=>x[1]===r)];bits=cap?bitsCCA(data,cap):null}
+      else bits=bitsCCB(data);
+      if(!bits)continue;
+      const ais=decodeBits(bits);if(!ais)continue;
+      return {ais,text:ais.map(([a,v])=>"("+a+")"+v).join(""),type:cd.g.cca?"CC-A":"CC-B",cols:c,rows:r,corrected:ne,missingRows:cd.rowsArr.filter(x=>!x).length};
+    }
+    return null;
+  }
+  function decode(gray,w,h,quad,opt){
+    opt=opt||{};
+    const tl=quad.topLeft,tr=quad.topRight,bl=quad.bottomLeft,br=quad.bottomRight;
+    const ux=(tr.x-tl.x+br.x-bl.x)/2,uy=(tr.y-tl.y+br.y-bl.y)/2;const Lq=Math.hypot(ux,uy);
+    if(!(Lq>20))return null;
+    const cx=(tl.x+tr.x+bl.x+br.x)/4,cy=(tl.y+tr.y+bl.y+br.y)/4;
+    const thq=Math.atan2(uy,ux);
+    // バーの向きを勾配の構造テンソルで推定（zxing の位置は回転していても水平なことがあるため）
+    let tht=thq;
+    {
+      const R=Lq*0.42,st=Math.max(1,Math.round(R/90));let sxx=0,syy=0,sxy=0;
+      const c=Math.cos(thq),s_=Math.sin(thq);
+      for(let a=-R;a<=R;a+=st)for(let b=-R*0.06;b<=R*0.06;b+=st){ // 直線部の帯の中だけ
+        const x=Math.round(cx+c*a-s_*b),y=Math.round(cy+s_*a+c*b);
+        if(x<1||y<1||x>=w-1||y>=h-1)continue;
+        const k=y*w+x,gx=gray[k+1]-gray[k-1],gy=gray[k+w]-gray[k-w];
+        sxx+=gx*gx;syy+=gy*gy;sxy+=gx*gy;
+      }
+      const t2=0.5*Math.atan2(2*sxy,sxx-syy),coh=Math.hypot(sxx-syy,2*sxy)/(sxx+syy+1e-9);
+      if(coh>0.3){let t=t2;if(Math.cos(t-thq)<0)t+=Math.PI;tht=t}
+    }
+    // 角度の候補：zxing の向き → 勾配の向き → その周りを 0.8° 刻みで
+    const D=Math.PI/180,angs=[thq,tht];
+    for(const k of [0.8,1.6,2.4,3.2,4.0,5.0,6.0])angs.push(tht+k*D,tht-k*D);
+    const uniq=[];for(const t of angs)if(!uniq.some(u=>Math.abs(u-t)<0.3*D))uniq.push(t);
+    const all=[];const t0=Date.now();
+    let ai=0;
+    for(const th of uniq){
+      if(ai++===2&&all.length<4)break; // 合成シンボルらしい行がほとんど無い → 打ち切り
+      const f=scanAt(gray,w,h,cx,cy,Lq,thq,th,opt);
+      if(opt.debug)(opt.debug.angles=opt.debug.angles||[]).push([+(th/D).toFixed(1),f.length]);
+      if(f.length){const r=solve(f,opt);if(r){r.angle=+(th/D).toFixed(1);return r}all.push(...f)}
+      if(opt.timeLimit&&Date.now()-t0>opt.timeLimit)break;
+    }
+    if(opt.debug)opt.debug.found=all;
+    return solve(all,opt);
+  }
+  return {decode,_rs:rsDecode,_bits:{bitsCCA,decodeBits},_rows:rowsFromRuns,_look:look,CW,RC,RLR};
+})();
+</script>
+<!--CC-END-->
+<script>
+(function(){
+const $=id=>document.getElementById(id);
+const KEY="scancho.history.v1";
+const SAMPLES=[
+  {v:"4901234567894",f:"EAN_13",t:Date.now()-3600e3*5,sample:true},
+  {v:"14569951110013",f:"RSS_14",t:Date.now()-60e3,sample:true}
+];
+let hist=load();
+let current=null;
+
+function load(){
+  try{const s=localStorage.getItem(KEY); if(s!==null) return JSON.parse(s)||[];}catch(e){}
+  return SAMPLES.slice();
+}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(hist));}catch(e){}}
+
+const FMT={EAN_13:"JAN / EAN-13",EAN_8:"JAN短縮 / EAN-8",UPC_A:"UPC-A",UPC_E:"UPC-E",CODE_128:"Code128",CODE_39:"Code39",CODE_93:"Code93",ITF:"ITF",CODABAR:"NW-7 / Codabar",QR_CODE:"QRコード",DATA_MATRIX:"Data Matrix",PDF_417:"PDF417",AZTEC:"Aztec",MANUAL:"手入力",RSS_14:"GS1 DataBar",RSS_EXPANDED:"GS1 DataBar 拡張型",RSS_LIMITED:"GS1 DataBar 限定型",MICRO_QR:"マイクロQR",RMQR:"rMQR",
+  ean_13:"JAN / EAN-13",ean_8:"JAN短縮 / EAN-8",upc_a:"UPC-A",upc_e:"UPC-E",code_128:"Code128",code_39:"Code39",code_93:"Code93",itf:"ITF",codabar:"NW-7 / Codabar",qr_code:"QRコード",data_matrix:"Data Matrix",pdf417:"PDF417",aztec:"Aztec"};
+const fmtName=(f,v)=>((f==="CODE_128"||f==="Code128")&&v&&/^(\]C1)?(\(01\)|01)\d{14}/.test(v))?"GS1-128":(FMT[f]||f||"不明");
+
+function janCheck(v){
+  if(!/^\d{8}$|^\d{13}$/.test(v)) return null;
+  const d=v.split("").map(Number), last=d.pop(); let s=0;
+  d.reverse().forEach((n,i)=>{s+=n*(i%2===0?3:1)});
+  return (10-s%10)%10===last;
+}
+const isURL=v=>/^https?:\/\/\S+$/i.test(v);
+
+/* ---------- GS1（医薬品）---------- */
+function gtinOK(s){
+  if(!/^\d{14}$/.test(s)) return false;
+  const d=s.split("").map(Number);let sum=0;
+  for(let i=0;i<13;i++) sum+=d[i]*(i%2===0?3:1);
+  return (10-sum%10)%10===d[13];
+}
+function parseGS1(raw,f){
+  let s=String(raw).replace(/^\](C1|e0|e1|d2|Q3)/,"").replace(/^[\u001dè]/,"").trim();
+  const ai={};
+  if(/\(\d{2,4}\)/.test(s)){
+    const re=/\((\d{2,4})\)([^(]*)/g;let m;
+    while((m=re.exec(s))) ai[m[1]]=m[2].replace(/\u001d/g,"").trim();
+  }else if(/^01\d{14}/.test(s)){
+    const FIX={"01":14,"02":14,"11":6,"13":6,"15":6,"17":6,"20":2};
+    const VAR=["10","21","22","30","37"];
+    let i=0;
+    while(i<s.length){
+      if(s[i]==="\u001d"){i++;continue}
+      const k=s.substr(i,2);i+=2;
+      if(FIX[k]){ai[k]=s.substr(i,FIX[k]);i+=FIX[k]}
+      else if(VAR.includes(k)){let j=s.indexOf("\u001d",i);if(j<0)j=s.length;ai[k]=s.slice(i,j);i=j}
+      else break;
+    }
+  }else if(/^\d{14}$/.test(s)){
+    ai["01"]=s;
+  }else if(/^\d{13}$/.test(s)&&/RSS/i.test(f||"")){
+    ai["01"]="0"+s;
+  }
+  if(!ai["01"]||!gtinOK(ai["01"])) return null;
+  const date=v=>v&&/^\d{6}$/.test(v)?`20${v.slice(0,2)}年${+v.slice(2,4)}月`+(v.slice(4)!=="00"?`${+v.slice(4)}日`:""):null;
+  const PK={"0":"調剤包装単位","1":"販売包装単位","2":"元梱包装単位"};
+  return {gtin:ai["01"],exp:date(ai["17"]),lot:ai["10"]||null,serial:ai["21"]||null,mfg:date(ai["11"]),qty:ai["30"]||null,
+    pack:PK[ai["01"][0]]||("インジケーター "+ai["01"][0]),prefix:ai["01"].slice(1,8)};
+}
+// 判定ルール（日本製薬団体連合会「医療用医薬品へのバーコード表示」に準拠）
+//  医療用医薬品：HOT マスターに載っている、または GTIN-14 の先頭3桁が 049／149／249／045／145／245（国内の事業者コード 49・45）
+//  インストアコード：先頭1桁を除いた番号が 2 で始まる（20〜29）
+//  それ以外：一般の GS1 商品コード
+function drugInfo(rec){
+  const g=parseGS1(rec.v,rec.f);if(!g) return null;
+  const ms=mstLookup(g.gtin);
+  g.inMaster=!!(ms&&(ms.a||ms.h));
+  g.kind=(g.inMaster||/^[012]4[59]/.test(g.gtin))?"drug":(g.gtin[1]==="2"?"instore":"gs1");
+  return g;
+}
+const isDrug=g=>!!g&&g.kind==="drug";
+
+/* ---------- 医薬品マスター ----------
+   A：MEDIS 医薬品コード全件（A_年月日_2.zip）…調剤・販売・元梱の各包装単位コード → 販売名など（主）
+   H：MEDIS 医薬品HOTコードマスター 販売包装単位コード付版（h年月日_h.zip）…販売包装単位コード → HOT13 など（補助） */
+let mst=null,mstInfo=null,mstA=null,mstInfoA=null;
+const IDB=()=>new Promise((res,rej)=>{const r=indexedDB.open("scancho",1);r.onupgradeneeded=()=>r.result.createObjectStore("kv");r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)});
+async function idbGet(k){const db=await IDB();return new Promise((res,rej)=>{const q=db.transaction("kv").objectStore("kv").get(k);q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error)})}
+async function idbSet(k,v){const db=await IDB();return new Promise((res,rej)=>{const t=db.transaction("kv","readwrite");t.objectStore("kv").put(v,k);t.oncomplete=()=>res();t.onerror=()=>rej(t.error)})}
+async function idbDel(k){const db=await IDB();return new Promise((res,rej)=>{const t=db.transaction("kv","readwrite");t.objectStore("kv").delete(k);t.oncomplete=()=>res();t.onerror=()=>rej(t.error)})}
+// 戻り値：{a:医薬品コードの行, h:HOTの行, maker, none}
+//  a = [販売名, 規格, 包装, 区分, 企業名, 剤形, 薬価コード, 生物由来, 麻薬等, 販売中止日, 最終ロット期限, 調剤包装単位名称, 販売包装コード, 元梱コード, 調剤コード]
+//  h = [販売名, 規格単位, 包装, 区分, 製造会社, 販売会社, HOT13, 個別医薬品コード]
+function mstLookup(gtin){
+  if(!mst&&!mstA) return null;
+  const out={};
+  if(mstA&&mstA.g[gtin]!==undefined) out.a=mstA.rows[mstA.g[gtin]];
+  if(mst){out.h=mst.g[gtin]||(out.a&&out.a[12]&&mst.g[out.a[12]])||null}
+  if(!out.a&&!out.h){const p7=gtin.slice(1,8);const mk=(mstA&&mstA.p[p7])||(mst&&mst.p[p7]);if(mk) out.maker=mk;else out.none=true}
+  return out;
+}
+function mstLatestYMD(){const d=new Date();const e=new Date(d.getFullYear(),d.getMonth(),0);
+  const y=e.getFullYear(),m=String(e.getMonth()+1).padStart(2,"0"),dd=String(e.getDate()).padStart(2,"0");return {ymd:`${y}${m}${dd}`,label:`${y}-${m}-${dd}`}}
+function mstShowStat(){
+  const L=mstLatestYMD();
+  $("mstDlA").href=`https://medhot.medd.jp/csv/A_${L.ymd}_2.zip`;
+  $("mstDl").href=`https://www2.medis.or.jp/hcode/moto_data/h${L.ymd}_h.zip`;
+  const note=(info)=>(info&&info.ver===L.label)?`（${L.label}版：読込済＝最新）`:`（${L.label}版）`+(info?"　新しい版があります":"");
+  $("mstDlNoteA").textContent=note(mstInfoA);$("mstDlNote").textContent=note(mstInfo);
+  $("mstStatA").textContent=mstInfoA?`医薬品コード：${mstInfoA.ver}版　${mstInfoA.n.toLocaleString()}品目（コード ${mstInfoA.codes.toLocaleString()}件）`:"医薬品コード：未読込（読み込むと、GS1 コードから販売名・規格・包装・メーカーを表示します）";
+  $("mstStat").textContent=mstInfo?`HOT コード：${mstInfo.ver}版　${mstInfo.n.toLocaleString()}件`:"HOT コード：未読込（任意）";
+  $("mstDel").hidden=!(mstInfo||mstInfoA);
+}
+async function unzipText(buf,pick){ // zip の中から pick(name) に合うファイルを取り出す（deflate のみ）
+  const dv=new DataView(buf),u8=new Uint8Array(buf);
+  let e=-1;for(let i=buf.byteLength-22;i>=Math.max(0,buf.byteLength-65557);i--)if(dv.getUint32(i,true)===0x06054b50){e=i;break}
+  if(e<0) throw "zip ではありません";
+  const n=dv.getUint16(e+10,true);let o=dv.getUint32(e+16,true);
+  const ents=[];
+  for(let k=0;k<n;k++){
+    const m=dv.getUint16(o+10,true),cs=dv.getUint32(o+20,true),fl=dv.getUint16(o+28,true),xl=dv.getUint16(o+30,true),cl=dv.getUint16(o+32,true),lo=dv.getUint32(o+42,true);
+    const nb=u8.subarray(o+46,o+46+fl);const name=(dv.getUint16(o+8,true)&0x800)?new TextDecoder().decode(nb):new TextDecoder("shift_jis").decode(nb);
+    ents.push({name,m,cs,lo});o+=46+fl+xl+cl;
+  }
+  const en=ents.find(x=>pick(x.name));
+  if(!en) throw "対応するファイルが zip の中に見つかりません（中身："+ents.map(x=>x.name).filter(x=>/txt$/i.test(x)).join("、")+"）";
+  const ln=dv.getUint16(en.lo+26,true),lx=dv.getUint16(en.lo+28,true),st=en.lo+30+ln+lx,data=u8.subarray(st,st+en.cs);
+  if(en.m===0) return {name:en.name,bytes:data};
+  if(en.m!==8) throw "未対応の圧縮形式です";
+  const ds=new Blob([data]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+  return {name:en.name,bytes:new Uint8Array(await new Response(ds).arrayBuffer())};
+}
+function parseCSVLine(l){const out=[];let cur="",q=false;for(let i=0;i<l.length;i++){const c=l[i];if(q){if(c==='"'){if(l[i+1]==='"'){cur+='"';i++}else q=false}else cur+=c}else if(c==='"')q=true;else if(c===","){out.push(cur);cur=""}else cur+=c}out.push(cur);return out}
+const nk=s=>String(s||"").normalize("NFKC").trim();
+function prefixMap(cnt){const p={};for(const k in cnt){let b="",bc=0;for(const m in cnt[k])if(cnt[k][m]>bc){bc=cnt[k][m];b=m}p[k]=b}return p}
+async function mstImport(file){
+  $("mstStatA").textContent="読み込み中…（数十秒かかることがあります）";
+  try{
+    const buf=await file.arrayBuffer();let bytes,name=file.name;
+    if(/\.zip$/i.test(file.name)||new DataView(buf).getUint32(0,true)===0x04034b50){
+      const r=await unzipText(buf,n=>/(^|\/)A_\d{8}_\d\.txt$/i.test(n)||/_h\.txt$/i.test(n));
+      bytes=r.bytes;name=file.name+" / "+r.name.split("/").pop();
+    }else bytes=new Uint8Array(buf);
+    const text=new TextDecoder("shift_jis").decode(bytes);
+    const lines=text.split(/\r?\n/);const H=parseCSVLine(lines[0]).map(nk);
+    const col=k=>H.findIndex(h=>h===k);const colI=k=>H.findIndex(h=>h.includes(k));
+    const ver0=(name.match(/(20\d{6})/)||[])[1]||"";const ver=ver0?ver0.slice(0,4)+"-"+ver0.slice(4,6)+"-"+ver0.slice(6):"不明";
+    const KB={"内":"内用薬","注":"注射薬","外":"外用薬","歯":"歯科用薬剤"};
+    if(col("調剤包装単位コード")>=0){
+      // ---- 医薬品コード全件 ----
+      const C={cho:col("調剤包装単位コード"),han:col("販売包装単位コード"),mot:col("元梱包装単位コード"),name:col("販売名"),spec:col("規格・製造承認時規格"),form:col("包装形態"),un:col("包装単位数"),uu:col("包装単位数単位"),tn:col("総数量数"),tu:col("総数量数単位"),kb:col("区分名"),zk:col("剤形"),mk:col("データ登録企業名"),yk:col("薬価コード"),bio:col("生物由来製品区分"),my:col("麻薬・皮内反応薬区分"),stop:col("販売中止年月日"),last:col("最終ロット使用期限"),chn:col("調剤包装単位名称")};
+      const F=(f,i)=>i>=0?nk(f[i]):"";
+      const rows=[],g={},cnt={};let codes=0;
+      for(let i=1;i<lines.length;i++){
+        if(!lines[i]) continue;const f=parseCSVLine(lines[i]);
+        const cho=C.cho>=0?(f[C.cho]||"").trim():"",han=C.han>=0?(f[C.han]||"").trim():"",mot=C.mot>=0?(f[C.mot]||"").trim():"";
+        if(!/^\d{14}$/.test(cho)&&!/^\d{14}$/.test(han)&&!/^\d{14}$/.test(mot)) continue;
+        const pk=[F(f,C.form),F(f,C.un)?F(f,C.un)+F(f,C.uu):"",F(f,C.tn)?"（総数量 "+F(f,C.tn)+F(f,C.tu)+"）":""].filter(Boolean).join(" ");
+        const idx=rows.length;
+        rows.push([F(f,C.name),F(f,C.spec),pk,F(f,C.kb),F(f,C.mk),F(f,C.zk),F(f,C.yk),F(f,C.bio),F(f,C.my),F(f,C.stop),F(f,C.last),F(f,C.chn),han,mot,cho]);
+        for(const c of [cho,han,mot]) if(/^\d{14}$/.test(c)){ if(g[c]===undefined){g[c]=idx;codes++} const p7=c.slice(1,8),mk=F(f,C.mk);(cnt[p7]=cnt[p7]||{})[mk]=(cnt[p7][mk]||0)+1 }
+      }
+      if(!rows.length) throw "データが読めませんでした";
+      mstA={rows,g,p:prefixMap(cnt)};mstInfoA={ver,n:rows.length,codes,file:file.name};
+      await idbSet("medhot",{mstA,mstInfoA});
+    }else if(colI("販売包装単位コード")>=0){
+      // ---- HOT コードマスター（販売包装単位コード付版）----
+      const C={gt:colI("販売包装単位コード"),name:colI("販売名"),spec:colI("規格単位"),form:colI("包装形態"),un:colI("包装単位数"),uu:colI("包装単位単位"),tn:colI("包装総量数"),tu:colI("包装総量単位"),kb:colI("区分"),mk:colI("製造会社"),sl:colI("販売会社"),hot:colI("基準番号"),yj:colI("個別医薬品コード")};
+      const g={},cnt={};
+      for(let i=1;i<lines.length;i++){
+        if(!lines[i]) continue;const f=parseCSVLine(lines[i]);const code=(f[C.gt]||"").trim();
+        if(!/^\d{14}$/.test(code)) continue;
+        const pk=[nk(f[C.form]),f[C.un]?nk(f[C.un])+nk(f[C.uu]):"",f[C.tn]?"（総量 "+nk(f[C.tn])+nk(f[C.tu])+"）":""].filter(Boolean).join(" ");
+        const kb=nk(f[C.kb]);
+        g[code]=[nk(f[C.name]),nk(f[C.spec]),pk,KB[kb]||kb,nk(f[C.mk]),nk(f[C.sl]),nk(f[C.hot]),nk(f[C.yj])];
+        const p7=code.slice(1,8),mk=nk(f[C.sl])||nk(f[C.mk]);(cnt[p7]=cnt[p7]||{})[mk]=(cnt[p7][mk]||0)+1;
+      }
+      const n=Object.keys(g).length;if(!n) throw "データが読めませんでした";
+      mst={g,p:prefixMap(cnt)};mstInfo={ver,n,file:file.name};
+      await idbSet("hot",{mst,mstInfo});
+    }else throw "対応していないファイルです。「医薬品コード 全件（調剤包装単位・販売包装単位・元梱包装単位コードファイル）」の zip を選んでください";
+    mstShowStat();toast("マスターを読み込みました");
+    if(current) show(current);
+  }catch(e){mstShowStat();$("mstStatA").textContent="読み込めませんでした："+(e&&e.message||e);}
+}
+$("mstFile").addEventListener("change",e=>{const f=e.target.files[0];e.target.value="";if(f) mstImport(f)});
+$("mstDel").onclick=async()=>{try{await idbDel("hot");await idbDel("medhot")}catch(e){}mst=null;mstInfo=null;mstA=null;mstInfoA=null;mstShowStat();if(current) show(current);toast("マスターを削除しました")};
+mstShowStat();
+(async()=>{try{
+  const v=await idbGet("hot");if(v&&v.mst){mst=v.mst;mstInfo=v.mstInfo}
+  const w=await idbGet("medhot");if(w&&w.mstA){mstA=w.mstA;mstInfoA=w.mstInfoA}
+  mstShowStat();if(current&&(mst||mstA)) show(current);
+}catch(e){}})();
+
+function toast(msg){const t=$("toast");t.textContent=msg;t.classList.add("show");clearTimeout(toast.h);toast.h=setTimeout(()=>t.classList.remove("show"),1600)}
+function status(msg,err){const s=$("status");s.textContent=msg||"";s.classList.toggle("err",!!err)}
+
+function link(label,href,cls){const a=document.createElement("a");a.className="btn ghost small "+(cls||"");a.href=href;a.target="_blank";a.rel="noopener";a.textContent=label;return a}
+
+function show(rec){
+  current=rec;
+  $("code").textContent=String(rec.v).replace(/\u001d/g," ");
+  const g=drugInfo(rec);
+  const chips=$("chips"); chips.innerHTML="";
+  const add=(t,c)=>{const s=document.createElement("span");s.className="chip "+(c||"");s.textContent=t;chips.appendChild(s)};
+  add(fmtName(rec.f,rec.v)+(rec.cc?"＋合成（"+rec.cc+"）":""));
+  if(rec.sample) add("サンプル","warn");
+  const ck=janCheck(rec.v);
+  if(ck===true) add("チェックデジット OK","ok");
+  if(ck===false) add("チェックデジット不一致","warn");
+  if(/^4[59]\d{11}$/.test(rec.v)) add("国コード 45/49（日本）");
+  if(/^2\d{12}$/.test(rec.v)||/^2\d{7}$/.test(rec.v)) add("インストアコード（お店独自の番号）","warn");
+  if(/^978|^979/.test(rec.v)&&rec.v.length===13) add("ISBN（書籍）");
+  if(g){
+    if(g.kind==="drug") add("医療用医薬品"+(g.inMaster?"":"（先頭"+g.gtin.slice(0,3)+"）"),"ok");
+    else if(g.kind==="instore") add("インストアコード（お店独自の番号）","warn");
+    else add("GS1 商品コード");
+  }
+
+  const dp=$("drug");dp.innerHTML="";dp.hidden=!g;
+  if(g){
+    const drug=g.kind==="drug";
+    const base="https://www.pmda.go.jp/PmdaSearch/";
+    const h=document.createElement("div");h.className="drug-h";h.textContent=drug?"添文ナビ（PMDA）":"GS1 データ";
+    const gt=document.createElement("table");gt.className="gs1t";
+    const tr=(k,v,na)=>{const r=gt.insertRow();const th=document.createElement("th");th.textContent=k;const td=r.insertCell();td.textContent=v;if(na)td.className="na";r.prepend(th)};
+    const ms=drug?mstLookup(g.gtin):null;
+    if(ms&&ms.a){
+      const A=ms.a,Hh=ms.h;
+      const ymd=v=>String(v||"").replace(/^(\d{4})(\d{2})(\d{2})?$/,(m,y,mo,d)=>y+"年"+(+mo)+"月"+(d&&d!=="00"?(+d)+"日":""));
+      tr("販売名",A[0]);
+      if(A[1]) tr("規格",A[1]);
+      if(g.gtin===A[14]&&A[11]) tr("調剤包装単位",A[11]);
+      if(A[2]) tr("包装",A[2]);
+      if(A[5]) tr("剤形",A[5]);
+      tr("製造販売",A[4]);
+      if(A[3]) tr("区分",A[3]);
+      if(A[8]&&A[8]!=="非該当") tr("麻薬等",A[8]);
+      if(A[7]&&A[7]!=="非該当") tr("生物由来製品",A[7]);
+      if(A[9]) tr("販売中止",ymd(A[9])+(A[10]?"（最終ロット期限 "+ymd(A[10])+"）":""),true);
+      if(A[6]) tr("薬価基準コード",A[6]);
+      if(Hh&&Hh[6]) tr("HOT13",Hh[6]);
+    }else if(ms&&ms.h){
+      const R=ms.h;
+      tr("販売名",R[0]);
+      if(R[1]) tr("規格単位",R[1]);
+      if(R[2]) tr("包装",R[2]);
+      tr("製造販売",R[4]===R[5]||!R[5]?R[4]:R[4]+"（販売："+R[5]+"）");
+      if(R[3]) tr("区分",R[3]);
+      if(R[6]) tr("HOT／YJ",R[6]+(R[7]?"／"+R[7]:""));
+    }else if(ms&&ms.maker){
+      tr("メーカー（推定）",ms.maker+"　※マスターに見つからないため、事業者コードから推定");
+    }else if(ms&&ms.none){
+      tr("販売名","マスターに見つかりません（"+((mstInfoA||mstInfo)||{}).ver+"版）",true);
+    }
+    tr("商品コード（GTIN）",g.gtin);
+    if(drug&&g.pack) tr("包装単位",g.pack+"（GTIN 先頭 "+g.gtin[0]+"）");
+    if(g.kind==="instore") tr("種類","インストアコード：お店が独自に付けた番号です（古書店の値札、店内管理ラベルなど）。医薬品ではありません。",true);
+    if(g.qty) tr("数量 (30)",g.qty);
+    if(g.mfg) tr("製造年月日 (11)",g.mfg);
+    if(g.exp) tr("有効期限",g.exp);
+    if(g.lot) tr("ロット",g.lot);
+    if(g.serial) tr("シリアル",g.serial);
+    if(drug&&!g.exp&&!g.lot&&rec.ccTried){
+      tr("有効期限・ロット",g.gtin[0]==="0"
+        ?"入っていません（調剤包装単位は期限・ロットの表示が任意のため、無いことがあります）。"
+        :"見つかりませんでした。バーコードの上（または下）の小さい2次元部分まで写るように、近づいてピントを合わせて撮り直してください。",true);
+    }
+    // 包装単位とバーコードの種類の整合（資料の表示ルールとの比較）
+    if(drug){
+      const notes=[],f=String(rec.f||""),is128=/CODE_128|Code128/i.test(f),isDB=/RSS|DataBar/i.test(f),known=f&&f!=="MANUAL";
+      const p=g.gtin[0];
+      if(known&&p==="2"&&!is128) notes.push("元梱包装単位（先頭 2）は通常 GS1-128 で表示されます。");
+      if(known&&(p==="0"||p==="1")&&is128) notes.push("調剤・販売包装単位は通常 GS1 データバーで表示されます。");
+      if(p==="1"&&rec.ccTried&&!g.exp&&!g.lot) notes.push("販売包装単位は有効期限・製造番号の表示が必須です。");
+      if(p==="2"&&known&&!g.qty) notes.push("元梱包装単位は数量 (30) の表示が必須です。");
+      if(notes.length) tr("表示ルールとの違い",notes.join(" ")+"（読み違いの可能性もあります）",true);
+    }
+    dp.append(h,gt);
+    if(drug){
+      const row=document.createElement("div");row.className="drug-links";
+      row.append(
+        link("電子添文を開く",base+"bookSearch/01/"+g.gtin,"drug-main"),
+        link("関連文書（医療関係者向け）",base+"rdSearch/01/"+g.gtin+"?user=1"),
+        link("一般の方向け",base+"rdSearch/01/"+g.gtin+"?user=2")
+      );
+      dp.append(row);
+    }
+  }
+
+  const acts=$("actions"); acts.innerHTML="";
+  const copy=document.createElement("button");copy.className="btn ghost small";copy.type="button";copy.textContent="コピー";
+  copy.onclick=()=>{
+    const done=()=>toast("コピーしました");
+    if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(rec.v).then(done,selectCode)}else selectCode();
+  };
+  acts.appendChild(copy);
+  const q=encodeURIComponent(rec.v);
+  if(isURL(rec.v)) acts.appendChild(link("サイトを開く",rec.v));
+  if(!isDrug(g)&&/^\d{8,14}$/.test(rec.v)&&!/^2/.test(rec.v)){
+    acts.appendChild(link("Amazonで探す","https://www.amazon.co.jp/s?k="+q));
+    acts.appendChild(link("Yahoo!ショッピング","https://shopping.yahoo.co.jp/search?p="+q));
+  }
+  acts.appendChild(link("Googleで検索","https://www.google.com/search?q="+q));
+}
+let sheetFrom=null;
+function openSheet(from){
+  sheetFrom=from;document.body.classList.add("sheet");$("slip").scrollTop=0;
+  $("sheetNext").textContent=from==="live"?"続けて読む":"もう一度撮影";
+  if(navigator.vibrate) try{navigator.vibrate(80)}catch(e){}
+}
+function closeSheet(){document.body.classList.remove("sheet")}
+$("sheetNext").onclick=()=>{const f=sheetFrom;closeSheet();if(f==="live")startLive();else $("shot").click()};
+$("sheetClose").onclick=closeSheet;
+function selectCode(){const r=document.createRange();r.selectNodeContents($("code"));const s=getSelection();s.removeAllRanges();s.addRange(r);toast("選択しました。長押しでコピーできます")}
+
+function record(v,f,meta){
+  v=String(v).trim(); if(!v) return;
+  hist=hist.filter(h=>!h.sample);
+  const rec=Object.assign({v,f,t:Date.now()},meta||{});
+  $("slip").classList.remove("stale");
+  hist.unshift(rec); hist=hist.slice(0,300); save(); render(); show(rec);
+}
+
+function render(){
+  const ul=$("list"); ul.innerHTML="";
+  if(!hist.length){ul.innerHTML='<li class="empty">まだ履歴はありません。読み取るとここに残ります。</li>';$("clearArea").hidden=true;return}
+  $("clearArea").hidden=false;
+  hist.forEach((h,i)=>{
+    const li=document.createElement("li");li.className="item";
+    const b=document.createElement("button");b.className="open";b.type="button";
+    const val=document.createElement("span");val.className="val";val.textContent=h.v;
+    const meta=document.createElement("span");meta.className="meta";
+    const d=new Date(h.t);
+    meta.textContent=`${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}・${fmtName(h.f,h.v)}${h.sample?"・サンプル":""}`;
+    b.append(val,meta); b.onclick=()=>{show(h);openSheet("hist")};
+    const del=document.createElement("button");del.className="del";del.type="button";del.textContent="削除";del.setAttribute("aria-label",h.v+" を削除");
+    del.onclick=()=>{hist.splice(i,1);save();render()};
+    li.append(b,del); ul.appendChild(li);
+  });
+}
+
+$("clearBtn").onclick=()=>{
+  const area=$("clearArea"); area.innerHTML="";
+  const box=document.createElement("div");box.className="confirm";box.textContent="全件消しますか？";
+  const yes=document.createElement("button");yes.className="del";yes.type="button";yes.textContent="消す";
+  const no=document.createElement("button");no.className="del";no.type="button";no.textContent="やめる";
+  const restore=()=>{area.innerHTML="";area.appendChild(clearBtnEl)};
+  yes.onclick=()=>{hist=[];save();render();restore();toast("履歴を削除しました")};
+  no.onclick=restore;
+  box.append(yes,no);area.appendChild(box);
+};
+const clearBtnEl=$("clearBtn");
+
+function normCode(raw){
+  let v=String(raw).replace(/[０-９（）Ａ-Ｚａ-ｚ]/g,ch=>String.fromCharCode(ch.charCodeAt(0)-0xFEE0)).trim();
+  const c=v.replace(/[\s　]/g,"");
+  if(/^[0-9()A-Za-z\-]+$/.test(c)&&/\d{8,}|\((01|1[01789]|21)\)/.test(c)) v=c;
+  return v;
+}
+function submitManual(){
+  let v=normCode($("manualInput").value);if(!v) return;
+  // 「(17)…(10)…」だけを貼り付けたときは、いま表示中の GTIN と合体する
+  const cg=current&&drugInfo(current);
+  if(/^\((1[01789]|21|30)\)/.test(v)&&!/\(01\)/.test(v)&&cg){v="(01)"+cg.gtin+v;record(v,current.f,{cc:"貼り付け"})}
+  else record(v,"MANUAL");
+  $("manualInput").value="";$("manualInput").blur();openSheet("manual");
+}
+$("manual").addEventListener("submit",e=>{e.preventDefault();submitManual()});
+$("manualInput").addEventListener("paste",()=>{setTimeout(()=>{const v=normCode($("manualInput").value);if(drugInfo({v,f:"MANUAL"})||/^\d{8,14}$/.test(v)||(/^\((1[01789]|21)\)/.test(v)&&current&&drugInfo(current))) submitManual()},0)});
+
+/* ---------- decoding ---------- */
+const hasZX=typeof ZXing!=="undefined";
+let zxReader=null;
+function zx(){
+  if(!hasZX) return null;
+  if(!zxReader){
+    const hints=new Map();
+    hints.set(ZXing.DecodeHintType.TRY_HARDER,true);
+    const F=ZXing.BarcodeFormat;
+    const fm=["EAN_13","EAN_8","UPC_A","UPC_E","CODE_128","CODE_39","CODE_93","ITF","CODABAR","RSS_14","QR_CODE","DATA_MATRIX","PDF_417","AZTEC"].map(n=>F[n]).filter(v=>v!==undefined);
+    hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS,fm);
+    zxReader=new ZXing.MultiFormatReader(); zxReader.setHints(hints);
+  }
+  return zxReader;
+}
+let detector=null;
+try{if("BarcodeDetector" in window) detector=new BarcodeDetector();}catch(e){detector=null}
+
+function canvasFrom(img,max){
+  const W0=img.naturalWidth||img.videoWidth||img.width,H0=img.naturalHeight||img.videoHeight||img.height;
+  const s=Math.min(1,max/Math.max(W0,H0));
+  const w=Math.round(W0*s),h=Math.round(H0*s);
+  const c=document.createElement("canvas");c.width=w;c.height=h;c.getContext("2d").drawImage(img,0,0,w,h);return c;
+}
+function zxDecodeCanvas(c){
+  const r=zx(); if(!r) return null;
+  try{
+    const src=new ZXing.HTMLCanvasElementLuminanceSource(c);
+    const res=r.decode(new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(src)));
+    return {v:res.getText(),f:ZXing.BarcodeFormat[res.getBarcodeFormat()],raw:res.getResultPoints()||[]};
+  }catch(e){return null}
+}
+function rotate90(c){const o=document.createElement("canvas");o.width=c.height;o.height=c.width;const x=o.getContext("2d");x.translate(o.width/2,o.height/2);x.rotate(Math.PI/2);x.drawImage(c,-c.width/2,-c.height/2);return o}
+
+async function decodeImage(img){
+  const W=img.naturalWidth,H=img.naturalHeight;
+  if(detector){try{const r=await detector.detect(img);if(r&&r.length){
+    const b=r[0].boundingBox;
+    const pts=b?[{x:b.x/W,y:(b.y+b.height/2)/H},{x:(b.x+b.width)/W,y:(b.y+b.height/2)/H}]:null;
+    return {v:r[0].rawValue,f:r[0].format,pts,box:true};
+  }}catch(e){}}
+  if(hasZX) for(const max of [1600,1000,2400]){
+    const c=canvasFrom(img,max);
+    let r=zxDecodeCanvas(c); if(r) return withPts(r,false,c);
+    r=zxDecodeCanvas(rotate90(c)); if(r) return withPts(r,true,c);
+  }
+  // ZXing（JS版）で読めなかったときだけ zxing-wasm を試す（DataBar 限定型＝PTPシートはここで読む）
+  status("詳細モードで読み取り中…");
+  // 大きさを変えて試す（同じ写真でも、縮小したほうが読めることがある）→ 白黒反転 → 少し傾けて
+  for(const max of [2400,1400,3200]){const r=await wasmDecode(canvasFrom(img,max),true);if(r) return r}
+  const c=canvasFrom(img,2000);
+  let r=await wasmDecode(invertCanvas(c),true); if(r) return r;
+  for(const deg of [-8,8,-15,15]){r=await wasmDecode(rotateCanvas(c,deg),false);if(r) return r}
+  return null;
+}
+function invertCanvas(c){const o=document.createElement("canvas");o.width=c.width;o.height=c.height;const x=o.getContext("2d");
+  const d=c.getContext("2d").getImageData(0,0,c.width,c.height),a=d.data;for(let i=0;i<a.length;i+=4){a[i]=255-a[i];a[i+1]=255-a[i+1];a[i+2]=255-a[i+2]}x.putImageData(d,0,0);return o}
+function rotateCanvas(c,deg){const a=deg*Math.PI/180,W=c.width,H=c.height,w=Math.ceil(Math.abs(W*Math.cos(a))+Math.abs(H*Math.sin(a))),h=Math.ceil(Math.abs(W*Math.sin(a))+Math.abs(H*Math.cos(a)));
+  const o=document.createElement("canvas");o.width=w;o.height=h;const x=o.getContext("2d");x.fillStyle="#fff";x.fillRect(0,0,w,h);x.translate(w/2,h/2);x.rotate(a);x.drawImage(c,-W/2,-H/2);return o}
+
+/* ---------- 合成シンボル（使用期限・ロット）を探す ---------- */
+const LIN_FMT=["DataBarLimited","DataBar","DataBarExpanded","EAN-13","EAN-8","UPC-A","UPC-E","Code128"];
+function grayOf(c){const d=c.getContext("2d").getImageData(0,0,c.width,c.height).data,n=c.width*c.height,g=new Uint8Array(n);for(let i=0,j=0;i<n;i++,j+=4)g[i]=(d[j]*77+d[j+1]*150+d[j+2]*29)>>8;return g}
+async function findComposite(img,gtin){
+  if(typeof CCDecoder==="undefined"||!(await ensureWasm())) return null;
+  const sm=canvasFrom(img,2000);
+  const quads=[];
+  const look=async(cv,o)=>{try{(await ZXingWASM.readBarcodes(cv.getContext("2d").getImageData(0,0,cv.width,cv.height),Object.assign({formats:LIN_FMT,tryHarder:true,maxNumberOfSymbols:4},o))).filter(r=>r.isValid&&(!gtin||String(r.text).replace(/\D/g,"").includes(gtin.replace(/^0/,"")))).forEach(r=>quads.push(r.position))}catch(e){}};
+  await look(sm,{tryRotate:true});
+  await look(sm,{tryRotate:false,formats:["DataBarLimited","DataBar","DataBarExpanded"]});
+  if(!quads.length) await look(invertCanvas(sm),{tryRotate:false});
+  if(!quads.length) return null;
+  // 2D 部分は細かいので、元の解像度（最大 4032px）で読む
+  const big=canvasFrom(img,4032),k=big.width/sm.width;
+  const tries=[[grayOf(big),big.width,big.height,k]];
+  if(k>1.3) tries.push([grayOf(sm),sm.width,sm.height,1]);
+  for(const [g,w,h,s] of tries){
+    for(const q of quads){
+      const Q={};for(const n of ["topLeft","topRight","bottomLeft","bottomRight"])Q[n]={x:q[n].x*s,y:q[n].y*s};
+      try{const r=CCDecoder.decode(g,w,h,Q,{timeLimit:5000});if(r) return r}catch(e){}
+    }
+  }
+  return null;
+}
+
+/* ---------- zxing-wasm（zxing-cpp）: DataBar 限定型など ---------- */
+const hasWASM=typeof ZXingWASM!=="undefined";
+const WASM_CDN="https://cdn.jsdelivr.net/npm/zxing-wasm@2.2.4/dist/reader/";
+const WASM_FMT={"EAN-13":"EAN_13","EAN-8":"EAN_8","UPC-A":"UPC_A","UPC-E":"UPC_E",Code128:"CODE_128",Code39:"CODE_39",Code93:"CODE_93",ITF:"ITF",Codabar:"CODABAR",
+  DataBar:"RSS_14",DataBarExpanded:"RSS_EXPANDED",DataBarLimited:"RSS_LIMITED",QRCode:"QR_CODE",MicroQRCode:"MICRO_QR",rMQRCode:"RMQR",DataMatrix:"DATA_MATRIX",PDF417:"PDF_417",Aztec:"AZTEC"};
+const WASM_OPTS={formats:Object.keys(WASM_FMT),tryHarder:true,tryRotate:true,tryInvert:true,tryDownscale:true,maxNumberOfSymbols:4};
+let wasmP=null,wasmSrc="";
+function engine(msg){const e=$("engine");if(e)e.textContent=msg}
+function ensureWasm(){
+  if(!hasWASM){engine("限定型エンジン：読み込めませんでした（通信を確認）");return Promise.resolve(false)}
+  if(wasmP) return wasmP;
+  const prep=local=>ZXingWASM.prepareZXingModule({
+    overrides:{locateFile:(p,pre)=>p.endsWith(".wasm")?(local?new URL(p,document.baseURI).href:WASM_CDN+p):pre+p},
+    fireImmediately:true});
+  engine("限定型エンジン：準備中…");
+  wasmP=prep(true).then(()=>{wasmSrc="同梱ファイル";return true})
+    .catch(()=>{try{ZXingWASM.purgeZXingModule()}catch(e){}return prep(false).then(()=>{wasmSrc="CDN";return true})})
+    .then(()=>{engine("限定型エンジン：使用可（"+wasmSrc+"）");return true})
+    .catch(e=>{engine("限定型エンジン：この画面では使えません（"+((e&&e.message)||e||"不明").toString().slice(0,60)+"）");return false});
+  return wasmP;
+}
+async function wasmDecode(c,withPos){
+  if(!(await ensureWasm())) return null;
+  try{
+    const data=c.getContext("2d").getImageData(0,0,c.width,c.height);
+    const rs=(await ZXingWASM.readBarcodes(data,WASM_OPTS)).filter(r=>r.isValid&&r.text);
+    if(!rs.length) return null;
+    const r=rs.find(x=>x.format==="DataBarLimited")||rs[0];
+    const out={v:r.text,f:WASM_FMT[r.format]||r.format};
+    if(withPos&&r.position){
+      const P=r.position,mid=(a,b)=>({x:(a.x+b.x)/2/c.width,y:(a.y+b.y)/2/c.height});
+      out.pts=[mid(P.topLeft,P.bottomLeft),mid(P.topRight,P.bottomRight)];out.box=true;
+    }
+    return out;
+  }catch(e){return null}
+}
+function withPts(r,rot,c){
+  let p=r.raw.map(q=>({x:q.getX(),y:q.getY()}));
+  if(rot) p=p.map(q=>({x:q.y,y:c.height-q.x}));
+  p=p.map(q=>({x:q.x/c.width,y:q.y/c.height}));
+  return {v:r.v,f:r.f,pts:p.length>=2?p:null};
+}
+
+async function handleFile(file,from){
+  if(!file) return;
+  stopLive();
+  if(!hasZX&&!detector&&!hasWASM){status("読み取り用ライブラリを読み込めませんでした。通信状態を確認して開き直してください。",true);return}
+  status("読み取り中…");
+  const url=URL.createObjectURL(file);
+  const img=$("preview"); img.hidden=false; $("hint").hidden=true; $("video").hidden=true; $("view").classList.add("shot");
+  img.onload=async()=>{
+    await new Promise(r=>setTimeout(r,30));
+    const r=await decodeImage(img);
+    lastScan=r||{pts:null,f:null};
+    $("measure").hidden=true; $("measureBtn").hidden=false;
+    if(r){
+      let v=r.v,meta={};
+      const g=drugInfo({v:r.v,f:r.f});
+      if(isDrug(g)&&!g.exp&&!g.lot){ // 医薬品 GS1 で期限・ロットがまだない → 合成シンボルを探す
+        status("使用期限・ロット（合成シンボル）を探しています…");
+        await new Promise(res=>setTimeout(res,20));
+        const cc=await findComposite(img,g.gtin).catch(()=>null);
+        meta.ccTried=true;
+        if(cc){v="(01)"+g.gtin+cc.text;meta.cc=cc.type}
+      }
+      record(v,r.f,meta);status(meta.cc?"読み取りました（使用期限・ロットも読めました）":"読み取りました");
+      openSheet(from||"shot");
+    }else{
+      // 前の結果と取り違えないよう、結果欄を「読めなかった」表示にする
+      current=null;$("slip").classList.add("stale");
+      $("code").textContent="読み取れませんでした";$("chips").innerHTML="";$("drug").hidden=true;$("actions").innerHTML="";
+      status("見つかりませんでした。バーコードに近づいて、ピントを合わせて撮り直してください。読めないときは、標準カメラのテキスト認識で番号をコピーし、下の入力欄に貼り付けてください。",true);
+    }
+  };
+  img.onerror=()=>status("この画像は開けませんでした。",true);
+  img.src=url;
+}
+$("shot").addEventListener("change",e=>{handleFile(e.target.files[0],"shot");e.target.value=""});
+$("pick").addEventListener("change",e=>{handleFile(e.target.files[0],"pick");e.target.value=""});
+
+/* ---------- live scanning (works when the page is allowed to use the camera) ---------- */
+let stream=null,loopId=0,lastV="",lastT=0;
+async function startLive(){
+  if(stream) return;
+  const v=$("video");
+  $("measureBtn").hidden=true; $("measure").hidden=true;
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"},width:{ideal:1920},height:{ideal:1080}},audio:false});
+  }catch(e){
+    status("この画面ではカメラの連続読み取りが使えません。「撮影して読み取る」を使ってください。",true);return;
+  }
+  v.srcObject=stream; v.hidden=false; $("preview").hidden=true; $("hint").hidden=true; $("view").classList.remove("shot");
+  $("view").classList.add("live"); $("liveBtn").textContent="停止";
+  await v.play().catch(()=>{});
+  status("バーコードを枠に入れてください");
+  const id=++loopId;let n=0,cand="",candN=0,candT=0;
+  const tr0=stream.getVideoTracks()[0];
+  if(tr0) tr0.onended=()=>{if(id===loopId&&!document.hidden){stopLive();startLive()}}; // iOS がカメラを止めたら開き直す
+  const tick=async()=>{
+    if(id!==loopId) return;
+    if(v.readyState>=2){
+      let r=null;n++;
+      if(detector){try{const d=await detector.detect(v);if(d.length) r={v:d[0].rawValue,f:d[0].format}}catch(e){}}
+      if(!r&&hasZX) r=zxDecodeCanvas(canvasFrom(v,960));
+      if(!r&&hasWASM&&n%3===0) r=await wasmDecode(canvasFrom(v,1280),false);
+      if(r){
+        if(r.v===cand&&Date.now()-candT<1500) candN++; else {cand=r.v;candN=1}
+        candT=Date.now();
+        if(candN>=2){ // 同じ結果が2コマ続いたら確定（誤読を防ぐ）
+          loopId++; // 読み取りの繰り返しを止める（カメラはまだ動かしておく）
+          let v2=r.v;const meta={};
+          const g=drugInfo({v:r.v,f:r.f});
+          if(isDrug(g)&&!g.exp&&!g.lot){ // 医療用医薬品で期限・ロットがまだ → このコマ（最大3コマ）で合成シンボルを探す
+            status("使用期限・ロット（合成シンボル）を探しています…");meta.ccTried=true;
+            for(let k=0;k<3;k++){
+              if(k) await new Promise(res=>setTimeout(res,150));
+              if(v.readyState<2) continue;
+              const cc=await findComposite(canvasFrom(v,4096),g.gtin).catch(()=>null);
+              if(cc){v2="(01)"+g.gtin+cc.text;meta.cc=cc.type;break}
+            }
+          }
+          stopLive();record(v2,r.f,meta);status(meta.cc?"読み取りました（使用期限・ロットも読めました）":"読み取りました");openSheet("live");return;
+        }
+      }
+    }
+    setTimeout(()=>requestAnimationFrame(tick),180);
+  };
+  tick();
+}
+let resumeLive=false;
+document.addEventListener("visibilitychange",()=>{
+  if(document.hidden){if(stream){resumeLive=true;stopLive()}}
+  else if(resumeLive){resumeLive=false;if(!document.body.classList.contains("sheet")) setTimeout(startLive,250)}
+});
+window.addEventListener("pagehide",()=>{if(stream){resumeLive=true;stopLive()}});
+function stopLive(){
+  loopId++;
+  if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}
+  $("view").classList.remove("live"); $("liveBtn").textContent="連続読み取り";
+  $("video").hidden=true;
+}
+/* ---------- size measurement with a steel rule ---------- */
+let lastScan={pts:null,f:null};
+const M={p:null,sel:"w1",drag:null,base:null};
+const NAMES={r1:"黄①",r2:"黄②",w1:"緑①",w2:"緑②",h1:"青①",h2:"青②"};
+const SPEC={
+  EAN_13:{mod:95,x:0.33,h:22.85,guard:92},ean_13:{mod:95,x:0.33,h:22.85},
+  UPC_A:{mod:95,x:0.33,h:22.85,guard:92},upc_a:{mod:95,x:0.33,h:22.85},
+  EAN_8:{mod:67,x:0.33,h:18.23,guard:64},ean_8:{mod:67,x:0.33,h:18.23},
+  UPC_E:{mod:51,x:0.33,h:22.85},upc_e:{mod:51,x:0.33,h:22.85},
+  RSS_14:{mod:96}
+};
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim()||"#888";
+function unit(){const cv=$("mCanvas"),w=cv.getBoundingClientRect().width;return w?cv.width/w:1}
+
+function openMeasure(){
+  const img=$("preview"); if(!img.naturalWidth) return;
+  const W=img.naturalWidth,H=img.naturalHeight,s=Math.min(1,2400/Math.max(W,H));
+  const cv=$("mCanvas"); cv.width=Math.round(W*s); cv.height=Math.round(H*s);
+  M.base=document.createElement("canvas");M.base.width=cv.width;M.base.height=cv.height;
+  M.base.getContext("2d").drawImage(img,0,0,cv.width,cv.height);
+  const cw=cv.width,ch=cv.height;
+  M.p={r1:{x:.2*cw,y:.85*ch},r2:{x:.8*cw,y:.85*ch},w1:{x:.25*cw,y:.5*ch},w2:{x:.75*cw,y:.5*ch},h1:{x:.55*cw,y:.32*ch},h2:{x:.55*cw,y:.68*ch}};
+  if(lastScan.pts){
+    let a={x:lastScan.pts[0].x*cw,y:lastScan.pts[0].y*ch},b={x:lastScan.pts[lastScan.pts.length-1].x*cw,y:lastScan.pts[lastScan.pts.length-1].y*ch};
+    const sp=SPEC[lastScan.f]; const k=(!lastScan.box&&sp&&sp.guard)?sp.mod/sp.guard:1;
+    const m={x:(a.x+b.x)/2,y:(a.y+b.y)/2};
+    a={x:m.x+(a.x-m.x)*k,y:m.y+(a.y-m.y)*k}; b={x:m.x+(b.x-m.x)*k,y:m.y+(b.y-m.y)*k};
+    const L=Math.hypot(b.x-a.x,b.y-a.y);
+    M.p.w1=a;M.p.w2=b;
+    M.p.h1={x:m.x+L*.08,y:m.y-L*.36};M.p.h2={x:m.x+L*.08,y:m.y+L*.36};
+    M.p.r1={x:a.x,y:Math.min(ch*.95,m.y+L*.6)};M.p.r2={x:b.x,y:Math.min(ch*.95,m.y+L*.6)};
+  }
+  M.sel="w1";
+  $("measure").hidden=false;
+  requestAnimationFrame(()=>{drawM();calcM();$("measure").scrollIntoView({behavior:"smooth",block:"start"})});
+}
+function drawM(){
+  const cv=$("mCanvas"),x=cv.getContext("2d"),u=unit();
+  x.drawImage(M.base,0,0);
+  const seg=(a,b,col)=>{
+    const A=M.p[a],B=M.p[b];
+    x.strokeStyle=col;x.lineWidth=2*u;x.beginPath();x.moveTo(A.x,A.y);x.lineTo(B.x,B.y);x.stroke();
+    [a,b].forEach(k=>{
+      const P=M.p[k];
+      x.lineWidth=2.5*u;x.beginPath();x.arc(P.x,P.y,13*u,0,Math.PI*2);
+      if(k===M.sel){x.fillStyle=col+"40";x.fill()}
+      x.stroke();
+      x.lineWidth=1*u;x.beginPath();x.moveTo(P.x-7*u,P.y);x.lineTo(P.x+7*u,P.y);x.moveTo(P.x,P.y-7*u);x.lineTo(P.x,P.y+7*u);x.stroke();
+    });
+  };
+  seg("r1","r2",css("--m-ruler"));seg("w1","w2",css("--accent"));seg("h1","h2",css("--m-height"));
+  $("mSel").textContent="選択中："+NAMES[M.sel]+"（矢印で1pxずつ）";
+}
+function loupe(k){
+  const L=$("mLoupe"),lx=L.getContext("2d"),cv=$("mCanvas"),u=unit(),P=M.p[k];
+  const sz=140*u/4;
+  lx.fillStyle="#000";lx.fillRect(0,0,280,280);
+  lx.drawImage(M.base,P.x-sz/2,P.y-sz/2,sz,sz,0,0,280,280);
+  const col=k[0]==="r"?css("--m-ruler"):k[0]==="w"?css("--accent"):css("--m-height");
+  lx.strokeStyle=col;lx.lineWidth=2;lx.beginPath();lx.moveTo(140,100);lx.lineTo(140,180);lx.moveTo(100,140);lx.lineTo(180,140);lx.stroke();
+  const left=(P.x/cv.width)>0.5;
+  L.style.left=left?"8px":"auto";L.style.right=left?"auto":"8px";
+  L.hidden=false;
+}
+function cvPoint(e){const cv=$("mCanvas"),r=cv.getBoundingClientRect();return {x:(e.clientX-r.left)*cv.width/r.width,y:(e.clientY-r.top)*cv.height/r.height}}
+$("mCanvas").addEventListener("pointerdown",e=>{
+  if(!M.p) return;
+  const p=cvPoint(e),u=unit();let best=null,bd=40*u;
+  for(const k in M.p){const d=Math.hypot(M.p[k].x-p.x,M.p[k].y-p.y);if(d<bd){bd=d;best=k}}
+  if(!best) return;
+  e.preventDefault();
+  M.drag=best;M.sel=best;M.off={x:M.p[best].x-p.x,y:M.p[best].y-p.y};
+  try{$("mCanvas").setPointerCapture(e.pointerId)}catch(_){}
+  drawM();loupe(best);
+});
+$("mCanvas").addEventListener("pointermove",e=>{
+  if(!M.drag) return;
+  const p=cvPoint(e),cv=$("mCanvas");
+  M.p[M.drag]={x:Math.max(0,Math.min(cv.width,p.x+M.off.x)),y:Math.max(0,Math.min(cv.height,p.y+M.off.y))};
+  drawM();loupe(M.drag);calcM();
+});
+const endDrag=()=>{if(!M.drag) return;M.drag=null;$("mLoupe").hidden=true;drawM();calcM()};
+$("mCanvas").addEventListener("pointerup",endDrag);
+$("mCanvas").addEventListener("pointercancel",endDrag);
+$("mNudge").addEventListener("click",e=>{
+  const b=e.target.closest("button[data-dx]");if(!b||!M.p) return;
+  const P=M.p[M.sel];P.x+=+b.dataset.dx;P.y+=+b.dataset.dy;
+  drawM();calcM();loupe(M.sel);clearTimeout(M.lt);M.lt=setTimeout(()=>{$("mLoupe").hidden=true},900);
+});
+$("mRef").addEventListener("input",()=>{document.querySelectorAll("#mPre button").forEach(b=>b.classList.toggle("on",b.dataset.v===$("mRef").value.trim()));calcM()});
+$("mRef").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();$("mRef").blur()}});
+$("mPre").addEventListener("click",e=>{const b=e.target.closest("button[data-v]");if(!b)return;$("mRef").value=b.dataset.v;$("mRef").blur();document.querySelectorAll("#mPre button").forEach(x=>x.classList.toggle("on",x===b));calcM()});
+// 線や矢印を触ったらキーボードを閉じる
+["mCanvas","mNudge"].forEach(id=>$(id).addEventListener("pointerdown",()=>{if(document.activeElement===$("mRef"))$("mRef").blur()},true));
+$("mClose").onclick=()=>{$("measure").hidden=true};
+$("measureBtn").onclick=openMeasure;
+
+let mText="";
+function calcM(){
+  const out=$("mRes"); if(!M.p) return;
+  const d=(a,b)=>Math.hypot(M.p[a].x-M.p[b].x,M.p[a].y-M.p[b].y);
+  const ref=parseFloat(String($("mRef").value).replace(/[０-９．]/g,c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0)));
+  if(!(ref>0)||d("r1","r2")<5){out.innerHTML='<dt>結果</dt><dd class="warn">黄の線の長さ（mm）を入れてください</dd>';mText="";return}
+  const ppm=d("r1","r2")/ref, w=d("w1","w2")/ppm, h=d("h1","h2")/ppm, res=1/ppm;
+  const rows=[["幅",w.toFixed(2)+" mm"],["高さ",h.toFixed(2)+" mm"]];
+  const sp=SPEC[lastScan.f];
+  let html="";
+  if(sp){
+    const X=w/sp.mod;
+    rows.push(["細バー幅 X",X.toFixed(3)+" mm（"+sp.mod+"モジュール換算）"]);
+    if(sp.x){
+      const mag=X/sp.x*100, inR=mag>=80&&mag<=200;
+      rows.push(["倍率",mag.toFixed(0)+" %（標準 X=0.330mm 比）",inR?"ok":"warn",inR?"80〜200% の範囲内":"80〜200% の範囲外"]);
+      if(sp.h){
+        const hr=h/(sp.h*mag/100)*100;
+        rows.push(["バー高さ",hr.toFixed(0)+" %（この倍率の標準高さ比）",hr>=97?"ok":"warn",hr>=97?"":"標準より低い（高さを詰めた印刷）"]);
+      }
+    }
+  }else{
+    rows.push(["規格判定","この種類のバーコードは幅と高さのみ表示します"]);
+  }
+  const accW=2*res;
+  rows.push(["精度の目安","1px = "+res.toFixed(3)+" mm（両端で ±"+accW.toFixed(2)+" mm 程度）",res>0.1?"warn":"",res>0.1?"解像度が足りません。近づいて撮り直してください":""]);
+  html=rows.map(r=>"<dt>"+r[0]+"</dt><dd>"+r[1]+(r[3]?' <span class="'+r[2]+'">'+r[3]+"</span>":"")+"</dd>").join("");
+  out.innerHTML=html;
+  mText=rows.map(r=>r[0]+": "+r[1]+(r[3]?" "+r[3]:"")).join("\n")+(current&&current.v?"\nコード: "+current.v:"");
+}
+$("mCopy").onclick=()=>{
+  if(!mText) return;
+  if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(mText).then(()=>toast("コピーしました"),()=>toast("コピーできませんでした"));
+};
+
+$("liveBtn").onclick=()=>{ if(stream){stopLive();status("")} else startLive() };
+// 枠（iframe）の中ではカメラの連続読み取りが許可されないため、ボタンを出さない
+(function(){let framed=false;try{framed=window.self!==window.top}catch(e){framed=true}
+  const pol=document.permissionsPolicy||document.featurePolicy;let camOK=true;try{if(pol&&pol.allowsFeature)camOK=pol.allowsFeature("camera")}catch(e){}
+  if(framed&&camOK!==true||framed&&!pol||!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia)){$("liveBtn").hidden=true;$("liveNote").hidden=false;$("pick").closest("label").style.gridColumn="1/-1"}})();
+
+render();
+show(hist[0]||{v:"—",f:""});
+if(!hist.length){$("code").textContent="—";$("chips").innerHTML="";$("actions").innerHTML=""}
+if(!hasZX&&!detector&&!hasWASM) status("読み取り用ライブラリを読み込めませんでした。通信状態を確認してください。",true);
+setTimeout(ensureWasm,800);
+})();
+</script>

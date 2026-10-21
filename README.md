@@ -8,3 +8,17 @@
 - iPhone の Safari で開き、「ホーム画面に追加」で使います
 
 使用ライブラリ：@zxing/library 0.21.3（Apache-2.0）、zxing-wasm 2.2.4（MIT）。合成シンボルのパターン表は BWIPP（MIT, Terry Burton）から抽出。
+
+## リポジトリの構成
+
+| 場所 | 中身 |
+| --- | --- |
+| 直下 | 公開ファイル（GitHub Pages で https://takashiueno-yu.github.io/SCANNER/ に出る） |
+| `src/scanner.html` | 元ソース。直下の `index.html` は `python tools/build_pages.py` で作る（直接は直さない） |
+| `tools/` | `build_pages.py`（index.html の生成）、`logo_gen.py`（ロゴ SVG の生成） |
+| `icons/` | アイコンの原図（SVG・1024px） |
+| `manual/` | 使用手順書の元（markdown・図・PDF 化スクリプト） |
+| `notes/KNOWHOW.md` | 開発ノウハウ・ハマりどころ |
+| `dev/` | 合成シンボルデコーダの開発土台とテスト用スクリプト |
+
+医薬品マスター（MEDIS のデータ）は再配布しないため、このリポジトリには置きません。各端末でアプリから取り込みます。
