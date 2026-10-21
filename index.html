@@ -218,17 +218,25 @@ footer{font-size:12px;color:var(--muted);line-height:1.7}
 
   <section class="master" aria-label="医薬品マスター">
     <h2>医薬品マスター（薬品名の表示用）</h2>
-    <p class="st" id="mstStat">未読込：読み込むと、GS1 コードから販売名・規格・包装・メーカーを表示します。</p>
+    <p class="st" id="mstStatA">医薬品コード：未読込</p>
+    <p class="st" id="mstStat">HOT コード：未読込</p>
     <div style="display:grid;gap:4px">
-      <a class="btn ghost small" id="mstDl" href="#" target="_blank" rel="noopener">① MEDIS から最新版をダウンロード</a>
-      <span class="m-tip" id="mstDlNote" style="text-align:center"></span>
-      <span class="m-tip">ダウンロードが終わったら、② で「ダウンロード」フォルダの zip を選びます。</span>
+      <a class="btn ghost small" id="mstDlA" href="#" target="_blank" rel="noopener">① 医薬品コード（全件）をダウンロード</a>
+      <span class="m-tip" id="mstDlNoteA" style="text-align:center"></span>
+      <span class="m-tip">ダウンロードが終わったら、② で「ダウンロード」フォルダの zip を選びます。調剤・販売・元梱の全包装単位で薬品名が出ます。</span>
     </div>
     <div class="row">
       <label class="btn ghost small" for="mstFile">② マスターを読み込む<input id="mstFile" type="file" accept=".zip,.txt,application/zip,text/plain"></label>
       <button class="btn ghost small" id="mstDel" type="button" hidden>削除</button>
     </div>
-    <p class="m-tip">MEDIS-DC「医薬品HOTコードマスター」の<b>販売包装単位コード付版</b>（h年月日_h.zip）を使います。① は前月末日の版のアドレスを自動で作ります。まだ公開されていない（月初めなど）ときは <a href="https://www2.medis.or.jp/hcode/old.html" target="_blank" rel="noopener">過去分の一覧</a> から選んでください。データはこの端末の中だけに保存し、どこにも送信しません。月1回程度、新しい版を読み込み直してください。</p>
+    <details class="m-tip"><summary>HOT コードも表示したいとき（任意）</summary>
+      <div style="display:grid;gap:4px;margin-top:6px">
+        <a class="btn ghost small" id="mstDl" href="#" target="_blank" rel="noopener">MEDIS の HOT コードマスターをダウンロード</a>
+        <span id="mstDlNote" style="text-align:center"></span>
+        <span>販売包装単位コード付版（h年月日_h.zip）を同じく ② で読み込むと、HOT13 コードも表示します。</span>
+      </div>
+    </details>
+    <p class="m-tip">医薬品コード：一般財団法人 医療情報システム開発センター（MEDIS）の <a href="https://medhot.medd.jp/view_download" target="_blank" rel="noopener">医薬品コード 全件CSV</a>（調剤包装単位・販売包装単位・元梱包装単位コードファイル）。① は前月末日の版のアドレスを自動で作ります。まだ公開されていないときはリンク先のページから選んでください。データはこの端末の中だけに保存し、どこにも送信しません。月1回程度、読み込み直してください。</p>
   </section>
 
   <footer>JAN／EAN・UPC・Code128・Code39・ITF・GS1 DataBar（標準型・限定型・拡張型）・GS1-128・Data Matrix・QRコードなどに対応。DataBar 等の上にある合成シンボル（CC-A／CC-B）から使用期限・ロットも読みます。医薬品のGS1コードを読むと、PMDAの電子添文・関連文書ページ（添文ナビと同じ参照先）を開けます。読み取りはすべてこの端末の中で行い、どこにも送信しません。<br><span id="engine">限定型エンジン：準備中…</span></footer>
@@ -759,94 +767,123 @@ function parseGS1(raw,f){
 function drugInfo(rec){
   const g=parseGS1(rec.v,rec.f);if(!g) return null;
   const ms=mstLookup(g.gtin);
-  g.inMaster=!!(ms&&ms.rec);
+  g.inMaster=!!(ms&&(ms.a||ms.h));
   g.kind=(g.inMaster||/^[012]4[59]/.test(g.gtin))?"drug":(g.gtin[1]==="2"?"instore":"gs1");
   return g;
 }
 const isDrug=g=>!!g&&g.kind==="drug";
 
-/* ---------- 医薬品マスター（MEDIS HOT・販売包装単位コード付版）---------- */
-let mst=null,mstInfo=null; // mst={g:{gtin:[...]},p:{prefix7:maker}}
+/* ---------- 医薬品マスター ----------
+   A：MEDIS 医薬品コード全件（A_年月日_2.zip）…調剤・販売・元梱の各包装単位コード → 販売名など（主）
+   H：MEDIS 医薬品HOTコードマスター 販売包装単位コード付版（h年月日_h.zip）…販売包装単位コード → HOT13 など（補助） */
+let mst=null,mstInfo=null,mstA=null,mstInfoA=null;
 const IDB=()=>new Promise((res,rej)=>{const r=indexedDB.open("scancho",1);r.onupgradeneeded=()=>r.result.createObjectStore("kv");r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)});
 async function idbGet(k){const db=await IDB();return new Promise((res,rej)=>{const q=db.transaction("kv").objectStore("kv").get(k);q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error)})}
 async function idbSet(k,v){const db=await IDB();return new Promise((res,rej)=>{const t=db.transaction("kv","readwrite");t.objectStore("kv").put(v,k);t.oncomplete=()=>res();t.onerror=()=>rej(t.error)})}
 async function idbDel(k){const db=await IDB();return new Promise((res,rej)=>{const t=db.transaction("kv","readwrite");t.objectStore("kv").delete(k);t.oncomplete=()=>res();t.onerror=()=>rej(t.error)})}
+// 戻り値：{a:医薬品コードの行, h:HOTの行, maker, none}
+//  a = [販売名, 規格, 包装, 区分, 企業名, 剤形, 薬価コード, 生物由来, 麻薬等, 販売中止日, 最終ロット期限, 調剤包装単位名称, 販売包装コード, 元梱コード, 調剤コード]
+//  h = [販売名, 規格単位, 包装, 区分, 製造会社, 販売会社, HOT13, 個別医薬品コード]
 function mstLookup(gtin){
-  if(!mst) return null;
-  const rec=mst.g[gtin];if(rec) return {rec};
-  const maker=mst.p[gtin.slice(1,8)];
-  return maker?{maker}:{none:true};
+  if(!mst&&!mstA) return null;
+  const out={};
+  if(mstA&&mstA.g[gtin]!==undefined) out.a=mstA.rows[mstA.g[gtin]];
+  if(mst){out.h=mst.g[gtin]||(out.a&&out.a[12]&&mst.g[out.a[12]])||null}
+  if(!out.a&&!out.h){const p7=gtin.slice(1,8);const mk=(mstA&&mstA.p[p7])||(mst&&mst.p[p7]);if(mk) out.maker=mk;else out.none=true}
+  return out;
 }
-function mstLatest(){ // 前月末日（例：10月なら 9/30）
-  const d=new Date();const e=new Date(d.getFullYear(),d.getMonth(),0);
-  const y=e.getFullYear(),m=String(e.getMonth()+1).padStart(2,"0"),dd=String(e.getDate()).padStart(2,"0");
-  return {ymd:`${y}${m}${dd}`,label:`${y}-${m}-${dd}`};
-}
+function mstLatestYMD(){const d=new Date();const e=new Date(d.getFullYear(),d.getMonth(),0);
+  const y=e.getFullYear(),m=String(e.getMonth()+1).padStart(2,"0"),dd=String(e.getDate()).padStart(2,"0");return {ymd:`${y}${m}${dd}`,label:`${y}-${m}-${dd}`}}
 function mstShowStat(){
-  const L=mstLatest();
+  const L=mstLatestYMD();
+  $("mstDlA").href=`https://medhot.medd.jp/csv/A_${L.ymd}_2.zip`;
   $("mstDl").href=`https://www2.medis.or.jp/hcode/moto_data/h${L.ymd}_h.zip`;
-  $("mstDlNote").textContent=(mstInfo&&mstInfo.ver===L.label)?`（${L.label}版：読込済＝最新）`:`（${L.label}版）`+(mstInfo?"　新しい版があります":"");
-  $("mstStat").textContent=mstInfo?`読込済：${mstInfo.ver}版　${mstInfo.n.toLocaleString()}件（${mstInfo.file}）`:"未読込：読み込むと、GS1 コードから販売名・規格・包装・メーカーを表示します。";
-  $("mstDel").hidden=!mstInfo;
+  const note=(info)=>(info&&info.ver===L.label)?`（${L.label}版：読込済＝最新）`:`（${L.label}版）`+(info?"　新しい版があります":"");
+  $("mstDlNoteA").textContent=note(mstInfoA);$("mstDlNote").textContent=note(mstInfo);
+  $("mstStatA").textContent=mstInfoA?`医薬品コード：${mstInfoA.ver}版　${mstInfoA.n.toLocaleString()}品目（コード ${mstInfoA.codes.toLocaleString()}件）`:"医薬品コード：未読込（読み込むと、GS1 コードから販売名・規格・包装・メーカーを表示します）";
+  $("mstStat").textContent=mstInfo?`HOT コード：${mstInfo.ver}版　${mstInfo.n.toLocaleString()}件`:"HOT コード：未読込（任意）";
+  $("mstDel").hidden=!(mstInfo||mstInfoA);
 }
 async function unzipText(buf,pick){ // zip の中から pick(name) に合うファイルを取り出す（deflate のみ）
   const dv=new DataView(buf),u8=new Uint8Array(buf);
   let e=-1;for(let i=buf.byteLength-22;i>=Math.max(0,buf.byteLength-65557);i--)if(dv.getUint32(i,true)===0x06054b50){e=i;break}
   if(e<0) throw "zip ではありません";
   const n=dv.getUint16(e+10,true);let o=dv.getUint32(e+16,true);
-  const names=[];
+  const ents=[];
   for(let k=0;k<n;k++){
     const m=dv.getUint16(o+10,true),cs=dv.getUint32(o+20,true),fl=dv.getUint16(o+28,true),xl=dv.getUint16(o+30,true),cl=dv.getUint16(o+32,true),lo=dv.getUint32(o+42,true);
     const nb=u8.subarray(o+46,o+46+fl);const name=(dv.getUint16(o+8,true)&0x800)?new TextDecoder().decode(nb):new TextDecoder("shift_jis").decode(nb);
-    names.push(name);
-    if(pick(name)){
-      const ln=dv.getUint16(lo+26,true),lx=dv.getUint16(lo+28,true),st=lo+30+ln+lx,data=u8.subarray(st,st+cs);
-      if(m===0) return {name,bytes:data};
-      if(m!==8) throw "未対応の圧縮形式です";
-      const ds=new Blob([data]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
-      return {name,bytes:new Uint8Array(await new Response(ds).arrayBuffer())};
-    }
-    o+=46+fl+xl+cl;
+    ents.push({name,m,cs,lo});o+=46+fl+xl+cl;
   }
-  throw "販売包装単位コード付版のファイルが見つかりません（中身："+names.filter(x=>/txt$/i.test(x)).join("、")+"）";
+  const en=ents.find(x=>pick(x.name));
+  if(!en) throw "対応するファイルが zip の中に見つかりません（中身："+ents.map(x=>x.name).filter(x=>/txt$/i.test(x)).join("、")+"）";
+  const ln=dv.getUint16(en.lo+26,true),lx=dv.getUint16(en.lo+28,true),st=en.lo+30+ln+lx,data=u8.subarray(st,st+en.cs);
+  if(en.m===0) return {name:en.name,bytes:data};
+  if(en.m!==8) throw "未対応の圧縮形式です";
+  const ds=new Blob([data]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+  return {name:en.name,bytes:new Uint8Array(await new Response(ds).arrayBuffer())};
 }
 function parseCSVLine(l){const out=[];let cur="",q=false;for(let i=0;i<l.length;i++){const c=l[i];if(q){if(c==='"'){if(l[i+1]==='"'){cur+='"';i++}else q=false}else cur+=c}else if(c==='"')q=true;else if(c===","){out.push(cur);cur=""}else cur+=c}out.push(cur);return out}
 const nk=s=>String(s||"").normalize("NFKC").trim();
+function prefixMap(cnt){const p={};for(const k in cnt){let b="",bc=0;for(const m in cnt[k])if(cnt[k][m]>bc){bc=cnt[k][m];b=m}p[k]=b}return p}
 async function mstImport(file){
-  $("mstStat").textContent="読み込み中…（数十秒かかることがあります）";
+  $("mstStatA").textContent="読み込み中…（数十秒かかることがあります）";
   try{
     const buf=await file.arrayBuffer();let bytes,name=file.name;
     if(/\.zip$/i.test(file.name)||new DataView(buf).getUint32(0,true)===0x04034b50){
-      const r=await unzipText(buf,n=>/_h\.txt$/i.test(n));bytes=r.bytes;name=file.name+" / "+r.name.split("/").pop();
+      const r=await unzipText(buf,n=>/(^|\/)A_\d{8}_\d\.txt$/i.test(n)||/_h\.txt$/i.test(n));
+      bytes=r.bytes;name=file.name+" / "+r.name.split("/").pop();
     }else bytes=new Uint8Array(buf);
     const text=new TextDecoder("shift_jis").decode(bytes);
     const lines=text.split(/\r?\n/);const H=parseCSVLine(lines[0]).map(nk);
-    const col=k=>H.findIndex(h=>h.includes(k));
-    const C={gt:col("販売包装単位コード"),name:col("販売名"),spec:col("規格単位"),form:col("包装形態"),un:col("包装単位数"),uu:col("包装単位単位"),tn:col("包装総量数"),tu:col("包装総量単位"),kb:col("区分"),mk:col("製造会社"),sl:col("販売会社"),hot:col("基準番号"),yj:col("個別医薬品コード")};
-    if(C.gt<0) throw "販売包装単位コードの列がありません。「販売包装単位コード付版」（_h の付いた zip）を選んでください";
-    const g={},cnt={};let n=0;
+    const col=k=>H.findIndex(h=>h===k);const colI=k=>H.findIndex(h=>h.includes(k));
+    const ver0=(name.match(/(20\d{6})/)||[])[1]||"";const ver=ver0?ver0.slice(0,4)+"-"+ver0.slice(4,6)+"-"+ver0.slice(6):"不明";
     const KB={"内":"内用薬","注":"注射薬","外":"外用薬","歯":"歯科用薬剤"};
-    for(let i=1;i<lines.length;i++){
-      if(!lines[i]) continue;const f=parseCSVLine(lines[i]);const code=(f[C.gt]||"").trim();
-      if(!/^\d{14}$/.test(code)) continue;
-      const pk=[nk(f[C.form]),f[C.un]?nk(f[C.un])+nk(f[C.uu]):"",f[C.tn]?"（総量 "+nk(f[C.tn])+nk(f[C.tu])+"）":""].filter(Boolean).join(" ");
-      const kb=nk(f[C.kb]);
-      g[code]=[nk(f[C.name]),nk(f[C.spec]),pk,KB[kb]||kb,nk(f[C.mk]),nk(f[C.sl]),nk(f[C.hot]),nk(f[C.yj])];
-      const p7=code.slice(1,8),mk=nk(f[C.sl])||nk(f[C.mk]);(cnt[p7]=cnt[p7]||{})[mk]=(cnt[p7][mk]||0)+1;n++;
-    }
-    if(!n) throw "データが読めませんでした";
-    const p={};for(const k in cnt){let b="",bc=0;for(const m in cnt[k])if(cnt[k][m]>bc){bc=cnt[k][m];b=m}p[k]=b}
-    const ver=(name.match(/(20\d{6})/)||[])[1]||"";
-    mst={g,p};mstInfo={ver:ver?ver.slice(0,4)+"-"+ver.slice(4,6)+"-"+ver.slice(6):"不明",n:Object.keys(g).length,file:file.name};
-    await idbSet("hot",{mst,mstInfo});
+    if(col("調剤包装単位コード")>=0){
+      // ---- 医薬品コード全件 ----
+      const C={cho:col("調剤包装単位コード"),han:col("販売包装単位コード"),mot:col("元梱包装単位コード"),name:col("販売名"),spec:col("規格・製造承認時規格"),form:col("包装形態"),un:col("包装単位数"),uu:col("包装単位数単位"),tn:col("総数量数"),tu:col("総数量数単位"),kb:col("区分名"),zk:col("剤形"),mk:col("データ登録企業名"),yk:col("薬価コード"),bio:col("生物由来製品区分"),my:col("麻薬・皮内反応薬区分"),stop:col("販売中止年月日"),last:col("最終ロット使用期限"),chn:col("調剤包装単位名称")};
+      const F=(f,i)=>i>=0?nk(f[i]):"";
+      const rows=[],g={},cnt={};let codes=0;
+      for(let i=1;i<lines.length;i++){
+        if(!lines[i]) continue;const f=parseCSVLine(lines[i]);
+        const cho=C.cho>=0?(f[C.cho]||"").trim():"",han=C.han>=0?(f[C.han]||"").trim():"",mot=C.mot>=0?(f[C.mot]||"").trim():"";
+        if(!/^\d{14}$/.test(cho)&&!/^\d{14}$/.test(han)&&!/^\d{14}$/.test(mot)) continue;
+        const pk=[F(f,C.form),F(f,C.un)?F(f,C.un)+F(f,C.uu):"",F(f,C.tn)?"（総数量 "+F(f,C.tn)+F(f,C.tu)+"）":""].filter(Boolean).join(" ");
+        const idx=rows.length;
+        rows.push([F(f,C.name),F(f,C.spec),pk,F(f,C.kb),F(f,C.mk),F(f,C.zk),F(f,C.yk),F(f,C.bio),F(f,C.my),F(f,C.stop),F(f,C.last),F(f,C.chn),han,mot,cho]);
+        for(const c of [cho,han,mot]) if(/^\d{14}$/.test(c)){ if(g[c]===undefined){g[c]=idx;codes++} const p7=c.slice(1,8),mk=F(f,C.mk);(cnt[p7]=cnt[p7]||{})[mk]=(cnt[p7][mk]||0)+1 }
+      }
+      if(!rows.length) throw "データが読めませんでした";
+      mstA={rows,g,p:prefixMap(cnt)};mstInfoA={ver,n:rows.length,codes,file:file.name};
+      await idbSet("medhot",{mstA,mstInfoA});
+    }else if(colI("販売包装単位コード")>=0){
+      // ---- HOT コードマスター（販売包装単位コード付版）----
+      const C={gt:colI("販売包装単位コード"),name:colI("販売名"),spec:colI("規格単位"),form:colI("包装形態"),un:colI("包装単位数"),uu:colI("包装単位単位"),tn:colI("包装総量数"),tu:colI("包装総量単位"),kb:colI("区分"),mk:colI("製造会社"),sl:colI("販売会社"),hot:colI("基準番号"),yj:colI("個別医薬品コード")};
+      const g={},cnt={};
+      for(let i=1;i<lines.length;i++){
+        if(!lines[i]) continue;const f=parseCSVLine(lines[i]);const code=(f[C.gt]||"").trim();
+        if(!/^\d{14}$/.test(code)) continue;
+        const pk=[nk(f[C.form]),f[C.un]?nk(f[C.un])+nk(f[C.uu]):"",f[C.tn]?"（総量 "+nk(f[C.tn])+nk(f[C.tu])+"）":""].filter(Boolean).join(" ");
+        const kb=nk(f[C.kb]);
+        g[code]=[nk(f[C.name]),nk(f[C.spec]),pk,KB[kb]||kb,nk(f[C.mk]),nk(f[C.sl]),nk(f[C.hot]),nk(f[C.yj])];
+        const p7=code.slice(1,8),mk=nk(f[C.sl])||nk(f[C.mk]);(cnt[p7]=cnt[p7]||{})[mk]=(cnt[p7][mk]||0)+1;
+      }
+      const n=Object.keys(g).length;if(!n) throw "データが読めませんでした";
+      mst={g,p:prefixMap(cnt)};mstInfo={ver,n,file:file.name};
+      await idbSet("hot",{mst,mstInfo});
+    }else throw "対応していないファイルです。「医薬品コード 全件（調剤包装単位・販売包装単位・元梱包装単位コードファイル）」の zip を選んでください";
     mstShowStat();toast("マスターを読み込みました");
     if(current) show(current);
-  }catch(e){$("mstStat").textContent="読み込めませんでした："+(e&&e.message||e);}
+  }catch(e){mstShowStat();$("mstStatA").textContent="読み込めませんでした："+(e&&e.message||e);}
 }
-mstShowStat();
 $("mstFile").addEventListener("change",e=>{const f=e.target.files[0];e.target.value="";if(f) mstImport(f)});
-$("mstDel").onclick=async()=>{try{await idbDel("hot")}catch(e){}mst=null;mstInfo=null;mstShowStat();if(current) show(current);toast("マスターを削除しました")};
-(async()=>{try{const v=await idbGet("hot");if(v&&v.mst){mst=v.mst;mstInfo=v.mstInfo;mstShowStat();if(current) show(current)}}catch(e){}})();
+$("mstDel").onclick=async()=>{try{await idbDel("hot");await idbDel("medhot")}catch(e){}mst=null;mstInfo=null;mstA=null;mstInfoA=null;mstShowStat();if(current) show(current);toast("マスターを削除しました")};
+mstShowStat();
+(async()=>{try{
+  const v=await idbGet("hot");if(v&&v.mst){mst=v.mst;mstInfo=v.mstInfo}
+  const w=await idbGet("medhot");if(w&&w.mstA){mstA=w.mstA;mstInfoA=w.mstInfoA}
+  mstShowStat();if(current&&(mst||mstA)) show(current);
+}catch(e){}})();
 
 function toast(msg){const t=$("toast");t.textContent=msg;t.classList.add("show");clearTimeout(toast.h);toast.h=setTimeout(()=>t.classList.remove("show"),1600)}
 function status(msg,err){const s=$("status");s.textContent=msg||"";s.classList.toggle("err",!!err)}
@@ -881,20 +918,35 @@ function show(rec){
     const gt=document.createElement("table");gt.className="gs1t";
     const tr=(k,v,na)=>{const r=gt.insertRow();const th=document.createElement("th");th.textContent=k;const td=r.insertCell();td.textContent=v;if(na)td.className="na";r.prepend(th)};
     const ms=drug?mstLookup(g.gtin):null;
-    if(ms&&ms.rec){
-      const R=ms.rec;
+    if(ms&&ms.a){
+      const A=ms.a,Hh=ms.h;
+      const ymd=v=>String(v||"").replace(/^(\d{4})(\d{2})(\d{2})?$/,(m,y,mo,d)=>y+"年"+(+mo)+"月"+(d&&d!=="00"?(+d)+"日":""));
+      tr("販売名",A[0]);
+      if(A[1]) tr("規格",A[1]);
+      if(g.gtin===A[14]&&A[11]) tr("調剤包装単位",A[11]);
+      if(A[2]) tr("包装",A[2]);
+      if(A[5]) tr("剤形",A[5]);
+      tr("製造販売",A[4]);
+      if(A[3]) tr("区分",A[3]);
+      if(A[8]&&A[8]!=="非該当") tr("麻薬等",A[8]);
+      if(A[7]&&A[7]!=="非該当") tr("生物由来製品",A[7]);
+      if(A[9]) tr("販売中止",ymd(A[9])+(A[10]?"（最終ロット期限 "+ymd(A[10])+"）":""),true);
+      if(A[6]) tr("薬価基準コード",A[6]);
+      if(Hh&&Hh[6]) tr("HOT13",Hh[6]);
+    }else if(ms&&ms.h){
+      const R=ms.h;
       tr("販売名",R[0]);
       if(R[1]) tr("規格単位",R[1]);
       if(R[2]) tr("包装",R[2]);
       tr("製造販売",R[4]===R[5]||!R[5]?R[4]:R[4]+"（販売："+R[5]+"）");
       if(R[3]) tr("区分",R[3]);
+      if(R[6]) tr("HOT／YJ",R[6]+(R[7]?"／"+R[7]:""));
     }else if(ms&&ms.maker){
-      tr("メーカー（推定）",ms.maker+"　※"+(g.gtin[0]==="0"?"調剤包装単位のコードはマスターに無いため、事業者コードから推定":"マスターに見つからないため、事業者コードから推定"));
+      tr("メーカー（推定）",ms.maker+"　※マスターに見つからないため、事業者コードから推定");
     }else if(ms&&ms.none){
-      tr("販売名","マスターに見つかりません（"+mstInfo.ver+"版）",true);
+      tr("販売名","マスターに見つかりません（"+((mstInfoA||mstInfo)||{}).ver+"版）",true);
     }
     tr("商品コード（GTIN）",g.gtin);
-    if(ms&&ms.rec&&ms.rec[6]) tr("HOT／YJ",ms.rec[6]+(ms.rec[7]?"／"+ms.rec[7]:""));
     if(drug&&g.pack) tr("包装単位",g.pack+"（GTIN 先頭 "+g.gtin[0]+"）");
     if(g.kind==="instore") tr("種類","インストアコード：お店が独自に付けた番号です（古書店の値札、店内管理ラベルなど）。医薬品ではありません。",true);
     if(g.qty) tr("数量 (30)",g.qty);
