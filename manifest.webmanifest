@@ -1,0 +1,10 @@
+{
+  "name": "スキャン帳",
+  "short_name": "スキャン帳",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#EDF1EF",
+  "theme_color": "#0E7458",
+  "icons": [{"src": "apple-touch-icon.png", "sizes": "180x180", "type": "image/png"}]
+}
