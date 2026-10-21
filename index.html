@@ -1029,8 +1029,9 @@ let detector=null;
 try{if("BarcodeDetector" in window) detector=new BarcodeDetector();}catch(e){detector=null}
 
 function canvasFrom(img,max){
-  const s=Math.min(1,max/Math.max(img.naturalWidth||img.videoWidth,img.naturalHeight||img.videoHeight));
-  const w=Math.round((img.naturalWidth||img.videoWidth)*s),h=Math.round((img.naturalHeight||img.videoHeight)*s);
+  const W0=img.naturalWidth||img.videoWidth||img.width,H0=img.naturalHeight||img.videoHeight||img.height;
+  const s=Math.min(1,max/Math.max(W0,H0));
+  const w=Math.round(W0*s),h=Math.round(H0*s);
   const c=document.createElement("canvas");c.width=w;c.height=h;c.getContext("2d").drawImage(img,0,0,w,h);return c;
 }
 function zxDecodeCanvas(c){
@@ -1181,7 +1182,7 @@ async function startLive(){
   const v=$("video");
   $("measureBtn").hidden=true; $("measure").hidden=true;
   try{
-    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"},width:{ideal:1280},height:{ideal:720}},audio:false});
+    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"},width:{ideal:1920},height:{ideal:1080}},audio:false});
   }catch(e){
     status("この画面ではカメラの連続読み取りが使えません。「撮影して読み取る」を使ってください。",true);return;
   }
@@ -1203,7 +1204,19 @@ async function startLive(){
         if(r.v===cand&&Date.now()-candT<1500) candN++; else {cand=r.v;candN=1}
         candT=Date.now();
         if(candN>=2){ // 同じ結果が2コマ続いたら確定（誤読を防ぐ）
-          stopLive();record(r.v,r.f);status("読み取りました");openSheet("live");return;
+          loopId++; // 読み取りの繰り返しを止める（カメラはまだ動かしておく）
+          let v2=r.v;const meta={};
+          const g=drugInfo({v:r.v,f:r.f});
+          if(isDrug(g)&&!g.exp&&!g.lot){ // 医療用医薬品で期限・ロットがまだ → このコマ（最大3コマ）で合成シンボルを探す
+            status("使用期限・ロット（合成シンボル）を探しています…");meta.ccTried=true;
+            for(let k=0;k<3;k++){
+              if(k) await new Promise(res=>setTimeout(res,150));
+              if(v.readyState<2) continue;
+              const cc=await findComposite(canvasFrom(v,4096),g.gtin).catch(()=>null);
+              if(cc){v2="(01)"+g.gtin+cc.text;meta.cc=cc.type;break}
+            }
+          }
+          stopLive();record(v2,r.f,meta);status(meta.cc?"読み取りました（使用期限・ロットも読めました）":"読み取りました");openSheet("live");return;
         }
       }
     }
