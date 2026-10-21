@@ -43,7 +43,7 @@ h1 small{font-family:var(--mono);font-size:11px;font-weight:500;color:var(--mute
 /* scanner window */
 .scanner{background:var(--ink);border-radius:18px;padding:14px;display:grid;gap:12px}
 .view{position:relative;aspect-ratio:4/3;max-width:100%;border-radius:10px;overflow:hidden;background:#0A0F0D;display:grid;place-items:center}
-.view video,.view img{width:100%;height:100%;object-fit:cover;display:block}
+.view video,.view img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
 .view .hint{color:#A9B8B2;font-size:13px;text-align:center;padding:16px;line-height:1.7}
 .view .bars{font-family:var(--mono);font-size:30px;letter-spacing:-2px;color:#5E7069;display:block;margin-bottom:6px}
 .laser{position:absolute;left:8%;right:8%;top:50%;height:2px;background:var(--laser);box-shadow:0 0 10px var(--laser);opacity:.85;display:none}
@@ -71,6 +71,17 @@ label.btn{position:relative}
 
 /* result slip */
 .slip{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;display:grid;gap:12px}
+.sheet-bar,.sheet-ok{display:none}
+body.sheet{overflow:hidden}
+body.sheet .slip{position:fixed;inset:0;z-index:50;border-radius:0;border:0;overflow-y:auto;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;gap:12px;
+  padding:calc(14px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) calc(28px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));animation:sheetIn .18s ease-out}
+@keyframes sheetIn{from{transform:translateY(24px);opacity:0}to{transform:none;opacity:1}}
+@media (prefers-reduced-motion:reduce){body.sheet .slip{animation:none}}
+body.sheet .sheet-ok{display:flex;align-items:center;gap:10px;font-size:20px;font-weight:900;color:var(--ok)}
+body.sheet .sheet-ok b{display:grid;place-items:center;width:34px;height:34px;border-radius:50%;background:var(--ok);color:var(--surface);font-size:20px}
+body.sheet .sheet-bar{display:grid;grid-template-columns:1fr auto;gap:8px;position:sticky;bottom:calc(-28px - env(safe-area-inset-bottom,0px));margin-top:auto;background:var(--surface);padding:12px 0 calc(12px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--line);order:99}
+body.sheet .sheet-bar .btn{min-height:56px;font-size:17px}
+body.sheet .slip>h2,body.sheet .manual{display:none}
 .slip h2,.ledger h2{font-size:12px;font-weight:700;letter-spacing:.14em;color:var(--muted);margin:0}
 .code{font-family:var(--mono);font-weight:700;font-size:22px;word-break:break-all;line-height:1.35;user-select:all}
 .chips{display:flex;flex-wrap:wrap;gap:6px}
@@ -134,6 +145,12 @@ label.btn{position:relative}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:8px 16px;border-radius:99px;font-size:13px;font-weight:700;opacity:0;transition:opacity .2s;pointer-events:none}
 .toast.show{opacity:1}
 footer{font-size:12px;color:var(--muted);line-height:1.7}
+.master{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;display:grid;gap:10px}
+.master h2{font-size:12px;font-weight:700;letter-spacing:.14em;color:var(--muted);margin:0}
+.master .st{font-size:13px;margin:0}
+.master .row{display:flex;gap:8px;flex-wrap:wrap}
+.master .row .btn{flex:1 1 auto}
+.master p.m-tip{margin:0}
 </style>
 
 <div class="wrap">
@@ -178,6 +195,7 @@ footer{font-size:12px;color:var(--muted);line-height:1.7}
   </section>
 
   <section class="slip" id="slip" aria-live="polite">
+    <div class="sheet-ok" id="sheetOk"><b aria-hidden="true">✓</b>読み取りました</div>
     <h2>読み取り結果</h2>
     <div class="code" id="code">—</div>
     <div class="chips" id="chips"></div>
@@ -187,6 +205,7 @@ footer{font-size:12px;color:var(--muted);line-height:1.7}
       <input id="manualInput" inputmode="numeric" autocomplete="off" placeholder="番号を入力・貼り付け（例 (01)04987…）" aria-label="コードを手入力">
       <button class="btn ghost small" type="submit">確認</button>
     </form>
+      <div class="sheet-bar" id="sheetBar"><button class="btn primary" id="sheetNext" type="button" style="grid-column:auto">続けて読む</button><button class="btn ghost" id="sheetClose" type="button">閉じる</button></div>
   </section>
 
   <section class="ledger">
@@ -195,6 +214,21 @@ footer{font-size:12px;color:var(--muted);line-height:1.7}
       <div id="clearArea"><button class="del" id="clearBtn" type="button">すべて削除</button></div>
     </div>
     <ul class="list" id="list"></ul>
+  </section>
+
+  <section class="master" aria-label="医薬品マスター">
+    <h2>医薬品マスター（薬品名の表示用）</h2>
+    <p class="st" id="mstStat">未読込：読み込むと、GS1 コードから販売名・規格・包装・メーカーを表示します。</p>
+    <div style="display:grid;gap:4px">
+      <a class="btn ghost small" id="mstDl" href="#" target="_blank" rel="noopener">① MEDIS から最新版をダウンロード</a>
+      <span class="m-tip" id="mstDlNote" style="text-align:center"></span>
+      <span class="m-tip">ダウンロードが終わったら、② で「ダウンロード」フォルダの zip を選びます。</span>
+    </div>
+    <div class="row">
+      <label class="btn ghost small" for="mstFile">② マスターを読み込む<input id="mstFile" type="file" accept=".zip,.txt,application/zip,text/plain"></label>
+      <button class="btn ghost small" id="mstDel" type="button" hidden>削除</button>
+    </div>
+    <p class="m-tip">MEDIS-DC「医薬品HOTコードマスター」の<b>販売包装単位コード付版</b>（h年月日_h.zip）を使います。① は前月末日の版のアドレスを自動で作ります。まだ公開されていない（月初めなど）ときは <a href="https://www2.medis.or.jp/hcode/old.html" target="_blank" rel="noopener">過去分の一覧</a> から選んでください。データはこの端末の中だけに保存し、どこにも送信しません。月1回程度、新しい版を読み込み直してください。</p>
   </section>
 
   <footer>JAN／EAN・UPC・Code128・Code39・ITF・GS1 DataBar（標準型・限定型・拡張型）・GS1-128・Data Matrix・QRコードなどに対応。DataBar 等の上にある合成シンボル（CC-A／CC-B）から使用期限・ロットも読みます。医薬品のGS1コードを読むと、PMDAの電子添文・関連文書ページ（添文ナビと同じ参照先）を開けます。読み取りはすべてこの端末の中で行い、どこにも送信しません。<br><span id="engine">限定型エンジン：準備中…</span></footer>
@@ -718,11 +752,101 @@ function parseGS1(raw,f){
   return {gtin:ai["01"],exp:date(ai["17"]),lot:ai["10"]||null,serial:ai["21"]||null,mfg:date(ai["11"]),qty:ai["30"]||null,
     pack:PK[ai["01"][0]]||("インジケーター "+ai["01"][0]),prefix:ai["01"].slice(1,8)};
 }
+// 判定ルール（日本製薬団体連合会「医療用医薬品へのバーコード表示」に準拠）
+//  医療用医薬品：HOT マスターに載っている、または GTIN-14 の先頭3桁が 049／149／249
+//  インストアコード：先頭1桁を除いた番号が 2 で始まる（20〜29）
+//  それ以外：一般の GS1 商品コード
 function drugInfo(rec){
-  let g=parseGS1(rec.v,rec.f);
-  if(!g&&/^4987\d{9}$/.test(rec.v)&&janCheck(rec.v)) g={gtin:"0"+rec.v,jan:true};
+  const g=parseGS1(rec.v,rec.f);if(!g) return null;
+  const ms=mstLookup(g.gtin);
+  g.inMaster=!!(ms&&ms.rec);
+  g.kind=(g.inMaster||/^[012]49/.test(g.gtin))?"drug":(g.gtin[1]==="2"?"instore":"gs1");
   return g;
 }
+const isDrug=g=>!!g&&g.kind==="drug";
+
+/* ---------- 医薬品マスター（MEDIS HOT・販売包装単位コード付版）---------- */
+let mst=null,mstInfo=null; // mst={g:{gtin:[...]},p:{prefix7:maker}}
+const IDB=()=>new Promise((res,rej)=>{const r=indexedDB.open("scancho",1);r.onupgradeneeded=()=>r.result.createObjectStore("kv");r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)});
+async function idbGet(k){const db=await IDB();return new Promise((res,rej)=>{const q=db.transaction("kv").objectStore("kv").get(k);q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error)})}
+async function idbSet(k,v){const db=await IDB();return new Promise((res,rej)=>{const t=db.transaction("kv","readwrite");t.objectStore("kv").put(v,k);t.oncomplete=()=>res();t.onerror=()=>rej(t.error)})}
+async function idbDel(k){const db=await IDB();return new Promise((res,rej)=>{const t=db.transaction("kv","readwrite");t.objectStore("kv").delete(k);t.oncomplete=()=>res();t.onerror=()=>rej(t.error)})}
+function mstLookup(gtin){
+  if(!mst) return null;
+  const rec=mst.g[gtin];if(rec) return {rec};
+  const maker=mst.p[gtin.slice(1,8)];
+  return maker?{maker}:{none:true};
+}
+function mstLatest(){ // 前月末日（例：10月なら 9/30）
+  const d=new Date();const e=new Date(d.getFullYear(),d.getMonth(),0);
+  const y=e.getFullYear(),m=String(e.getMonth()+1).padStart(2,"0"),dd=String(e.getDate()).padStart(2,"0");
+  return {ymd:`${y}${m}${dd}`,label:`${y}-${m}-${dd}`};
+}
+function mstShowStat(){
+  const L=mstLatest();
+  $("mstDl").href=`https://www2.medis.or.jp/hcode/moto_data/h${L.ymd}_h.zip`;
+  $("mstDlNote").textContent=(mstInfo&&mstInfo.ver===L.label)?`（${L.label}版：読込済＝最新）`:`（${L.label}版）`+(mstInfo?"　新しい版があります":"");
+  $("mstStat").textContent=mstInfo?`読込済：${mstInfo.ver}版　${mstInfo.n.toLocaleString()}件（${mstInfo.file}）`:"未読込：読み込むと、GS1 コードから販売名・規格・包装・メーカーを表示します。";
+  $("mstDel").hidden=!mstInfo;
+}
+async function unzipText(buf,pick){ // zip の中から pick(name) に合うファイルを取り出す（deflate のみ）
+  const dv=new DataView(buf),u8=new Uint8Array(buf);
+  let e=-1;for(let i=buf.byteLength-22;i>=Math.max(0,buf.byteLength-65557);i--)if(dv.getUint32(i,true)===0x06054b50){e=i;break}
+  if(e<0) throw "zip ではありません";
+  const n=dv.getUint16(e+10,true);let o=dv.getUint32(e+16,true);
+  const names=[];
+  for(let k=0;k<n;k++){
+    const m=dv.getUint16(o+10,true),cs=dv.getUint32(o+20,true),fl=dv.getUint16(o+28,true),xl=dv.getUint16(o+30,true),cl=dv.getUint16(o+32,true),lo=dv.getUint32(o+42,true);
+    const nb=u8.subarray(o+46,o+46+fl);const name=(dv.getUint16(o+8,true)&0x800)?new TextDecoder().decode(nb):new TextDecoder("shift_jis").decode(nb);
+    names.push(name);
+    if(pick(name)){
+      const ln=dv.getUint16(lo+26,true),lx=dv.getUint16(lo+28,true),st=lo+30+ln+lx,data=u8.subarray(st,st+cs);
+      if(m===0) return {name,bytes:data};
+      if(m!==8) throw "未対応の圧縮形式です";
+      const ds=new Blob([data]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+      return {name,bytes:new Uint8Array(await new Response(ds).arrayBuffer())};
+    }
+    o+=46+fl+xl+cl;
+  }
+  throw "販売包装単位コード付版のファイルが見つかりません（中身："+names.filter(x=>/txt$/i.test(x)).join("、")+"）";
+}
+function parseCSVLine(l){const out=[];let cur="",q=false;for(let i=0;i<l.length;i++){const c=l[i];if(q){if(c==='"'){if(l[i+1]==='"'){cur+='"';i++}else q=false}else cur+=c}else if(c==='"')q=true;else if(c===","){out.push(cur);cur=""}else cur+=c}out.push(cur);return out}
+const nk=s=>String(s||"").normalize("NFKC").trim();
+async function mstImport(file){
+  $("mstStat").textContent="読み込み中…（数十秒かかることがあります）";
+  try{
+    const buf=await file.arrayBuffer();let bytes,name=file.name;
+    if(/\.zip$/i.test(file.name)||new DataView(buf).getUint32(0,true)===0x04034b50){
+      const r=await unzipText(buf,n=>/_h\.txt$/i.test(n));bytes=r.bytes;name=file.name+" / "+r.name.split("/").pop();
+    }else bytes=new Uint8Array(buf);
+    const text=new TextDecoder("shift_jis").decode(bytes);
+    const lines=text.split(/\r?\n/);const H=parseCSVLine(lines[0]).map(nk);
+    const col=k=>H.findIndex(h=>h.includes(k));
+    const C={gt:col("販売包装単位コード"),name:col("販売名"),spec:col("規格単位"),form:col("包装形態"),un:col("包装単位数"),uu:col("包装単位単位"),tn:col("包装総量数"),tu:col("包装総量単位"),kb:col("区分"),mk:col("製造会社"),sl:col("販売会社"),hot:col("基準番号"),yj:col("個別医薬品コード")};
+    if(C.gt<0) throw "販売包装単位コードの列がありません。「販売包装単位コード付版」（_h の付いた zip）を選んでください";
+    const g={},cnt={};let n=0;
+    const KB={"内":"内用薬","注":"注射薬","外":"外用薬","歯":"歯科用薬剤"};
+    for(let i=1;i<lines.length;i++){
+      if(!lines[i]) continue;const f=parseCSVLine(lines[i]);const code=(f[C.gt]||"").trim();
+      if(!/^\d{14}$/.test(code)) continue;
+      const pk=[nk(f[C.form]),f[C.un]?nk(f[C.un])+nk(f[C.uu]):"",f[C.tn]?"（総量 "+nk(f[C.tn])+nk(f[C.tu])+"）":""].filter(Boolean).join(" ");
+      const kb=nk(f[C.kb]);
+      g[code]=[nk(f[C.name]),nk(f[C.spec]),pk,KB[kb]||kb,nk(f[C.mk]),nk(f[C.sl]),nk(f[C.hot]),nk(f[C.yj])];
+      const p7=code.slice(1,8),mk=nk(f[C.sl])||nk(f[C.mk]);(cnt[p7]=cnt[p7]||{})[mk]=(cnt[p7][mk]||0)+1;n++;
+    }
+    if(!n) throw "データが読めませんでした";
+    const p={};for(const k in cnt){let b="",bc=0;for(const m in cnt[k])if(cnt[k][m]>bc){bc=cnt[k][m];b=m}p[k]=b}
+    const ver=(name.match(/(20\d{6})/)||[])[1]||"";
+    mst={g,p};mstInfo={ver:ver?ver.slice(0,4)+"-"+ver.slice(4,6)+"-"+ver.slice(6):"不明",n:Object.keys(g).length,file:file.name};
+    await idbSet("hot",{mst,mstInfo});
+    mstShowStat();toast("マスターを読み込みました");
+    if(current) show(current);
+  }catch(e){$("mstStat").textContent="読み込めませんでした："+(e&&e.message||e);}
+}
+mstShowStat();
+$("mstFile").addEventListener("change",e=>{const f=e.target.files[0];e.target.value="";if(f) mstImport(f)});
+$("mstDel").onclick=async()=>{try{await idbDel("hot")}catch(e){}mst=null;mstInfo=null;mstShowStat();if(current) show(current);toast("マスターを削除しました")};
+(async()=>{try{const v=await idbGet("hot");if(v&&v.mst){mst=v.mst;mstInfo=v.mstInfo;mstShowStat();if(current) show(current)}}catch(e){}})();
 
 function toast(msg){const t=$("toast");t.textContent=msg;t.classList.add("show");clearTimeout(toast.h);toast.h=setTimeout(()=>t.classList.remove("show"),1600)}
 function status(msg,err){const s=$("status");s.textContent=msg||"";s.classList.toggle("err",!!err)}
@@ -741,39 +865,67 @@ function show(rec){
   if(ck===true) add("チェックデジット OK","ok");
   if(ck===false) add("チェックデジット不一致","warn");
   if(/^4[59]\d{11}$/.test(rec.v)) add("国コード 45/49（日本）");
+  if(/^2\d{12}$/.test(rec.v)||/^2\d{7}$/.test(rec.v)) add("インストアコード（お店独自の番号）","warn");
   if(/^978|^979/.test(rec.v)&&rec.v.length===13) add("ISBN（書籍）");
   if(g){
-    add(g.jan?"医薬品 JAN":"医薬品 GS1","ok");
+    if(g.kind==="drug") add("医療用医薬品"+(g.inMaster?"":"（049/149/249）"),"ok");
+    else if(g.kind==="instore") add("インストアコード（お店独自の番号）","warn");
+    else add("GS1 商品コード");
   }
 
   const dp=$("drug");dp.innerHTML="";dp.hidden=!g;
   if(g){
+    const drug=g.kind==="drug";
     const base="https://www.pmda.go.jp/PmdaSearch/";
-    const h=document.createElement("div");h.className="drug-h";h.textContent="添文ナビ（PMDA）";
+    const h=document.createElement("div");h.className="drug-h";h.textContent=drug?"添文ナビ（PMDA）":"GS1 データ";
     const gt=document.createElement("table");gt.className="gs1t";
     const tr=(k,v,na)=>{const r=gt.insertRow();const th=document.createElement("th");th.textContent=k;const td=r.insertCell();td.textContent=v;if(na)td.className="na";r.prepend(th)};
+    const ms=drug?mstLookup(g.gtin):null;
+    if(ms&&ms.rec){
+      const R=ms.rec;
+      tr("販売名",R[0]);
+      if(R[1]) tr("規格単位",R[1]);
+      if(R[2]) tr("包装",R[2]);
+      tr("製造販売",R[4]===R[5]||!R[5]?R[4]:R[4]+"（販売："+R[5]+"）");
+      if(R[3]) tr("区分",R[3]);
+    }else if(ms&&ms.maker){
+      tr("メーカー（推定）",ms.maker+"　※"+(g.gtin[0]==="0"?"調剤包装単位のコードはマスターに無いため、事業者コードから推定":"マスターに見つからないため、事業者コードから推定"));
+    }else if(ms&&ms.none){
+      tr("販売名","マスターに見つかりません（"+mstInfo.ver+"版）",true);
+    }
     tr("商品コード（GTIN）",g.gtin);
-    if(!g.jan&&g.pack) tr("包装単位",g.pack+"（GTIN 先頭 "+g.gtin[0]+"）");
+    if(ms&&ms.rec&&ms.rec[6]) tr("HOT／YJ",ms.rec[6]+(ms.rec[7]?"／"+ms.rec[7]:""));
+    if(drug&&g.pack) tr("包装単位",g.pack+"（GTIN 先頭 "+g.gtin[0]+"）");
+    if(g.kind==="instore") tr("種類","インストアコード：お店が独自に付けた番号です（古書店の値札、店内管理ラベルなど）。医薬品ではありません。",true);
     if(g.qty) tr("数量 (30)",g.qty);
     if(g.mfg) tr("製造年月日 (11)",g.mfg);
-    if(g.exp||g.lot||g.serial){
-      if(g.exp) tr("有効期限",g.exp);
-      if(g.lot) tr("ロット",g.lot);
-      if(g.serial) tr("シリアル",g.serial);
-    }else if(rec.ccTried){
-      tr("有効期限・ロット","見つかりませんでした（PTPシートなど、もともと入っていないものもあります）。箱で読む場合は、バーコードの上の小さい2次元部分まで写るように、近づいてピントを合わせて撮り直してください。",true);
+    if(g.exp) tr("有効期限",g.exp);
+    if(g.lot) tr("ロット",g.lot);
+    if(g.serial) tr("シリアル",g.serial);
+    if(drug&&!g.exp&&!g.lot&&rec.ccTried){
+      tr("有効期限・ロット",g.gtin[0]==="0"
+        ?"入っていません（調剤包装単位は期限・ロットの表示が任意のため、無いことがあります）。"
+        :"見つかりませんでした。バーコードの上（または下）の小さい2次元部分まで写るように、近づいてピントを合わせて撮り直してください。",true);
     }
-    const row=document.createElement("div");row.className="drug-links";
-    row.append(
-      link("電子添文を開く",base+"bookSearch/01/"+g.gtin,"drug-main"),
-      link("関連文書（医療関係者向け）",base+"rdSearch/01/"+g.gtin+"?user=1"),
-      link("一般の方向け",base+"rdSearch/01/"+g.gtin+"?user=2")
-    );
-    dp.append(h,gt,row);
-    if(g.jan){
-      const n=document.createElement("div");n.className="drug-note";
-      n.textContent="JANコードから変換しています。添文が見つからないときは、箱やシートのGS1コード（JANの隣にある細長いバーコード）を読んでください。";
-      dp.appendChild(n);
+    // 包装単位とバーコードの種類の整合（資料の表示ルールとの比較）
+    if(drug){
+      const notes=[],f=String(rec.f||""),is128=/CODE_128|Code128/i.test(f),isDB=/RSS|DataBar/i.test(f),known=f&&f!=="MANUAL";
+      const p=g.gtin[0];
+      if(known&&p==="2"&&!is128) notes.push("元梱包装単位（先頭 2）は通常 GS1-128 で表示されます。");
+      if(known&&(p==="0"||p==="1")&&is128) notes.push("調剤・販売包装単位は通常 GS1 データバーで表示されます。");
+      if(p==="1"&&rec.ccTried&&!g.exp&&!g.lot) notes.push("販売包装単位は有効期限・製造番号の表示が必須です。");
+      if(p==="2"&&known&&!g.qty) notes.push("元梱包装単位は数量 (30) の表示が必須です。");
+      if(notes.length) tr("表示ルールとの違い",notes.join(" ")+"（読み違いの可能性もあります）",true);
+    }
+    dp.append(h,gt);
+    if(drug){
+      const row=document.createElement("div");row.className="drug-links";
+      row.append(
+        link("電子添文を開く",base+"bookSearch/01/"+g.gtin,"drug-main"),
+        link("関連文書（医療関係者向け）",base+"rdSearch/01/"+g.gtin+"?user=1"),
+        link("一般の方向け",base+"rdSearch/01/"+g.gtin+"?user=2")
+      );
+      dp.append(row);
     }
   }
 
@@ -786,12 +938,21 @@ function show(rec){
   acts.appendChild(copy);
   const q=encodeURIComponent(rec.v);
   if(isURL(rec.v)) acts.appendChild(link("サイトを開く",rec.v));
-  if(!g&&/^\d{8,14}$/.test(rec.v)){
+  if(!isDrug(g)&&/^\d{8,14}$/.test(rec.v)&&!/^2/.test(rec.v)){
     acts.appendChild(link("Amazonで探す","https://www.amazon.co.jp/s?k="+q));
     acts.appendChild(link("Yahoo!ショッピング","https://shopping.yahoo.co.jp/search?p="+q));
   }
   acts.appendChild(link("Googleで検索","https://www.google.com/search?q="+q));
 }
+let sheetFrom=null;
+function openSheet(from){
+  sheetFrom=from;document.body.classList.add("sheet");$("slip").scrollTop=0;
+  $("sheetNext").textContent=from==="live"?"続けて読む":"もう一度撮影";
+  if(navigator.vibrate) try{navigator.vibrate(80)}catch(e){}
+}
+function closeSheet(){document.body.classList.remove("sheet")}
+$("sheetNext").onclick=()=>{const f=sheetFrom;closeSheet();if(f==="live")startLive();else $("shot").click()};
+$("sheetClose").onclick=closeSheet;
 function selectCode(){const r=document.createRange();r.selectNodeContents($("code"));const s=getSelection();s.removeAllRanges();s.addRange(r);toast("選択しました。長押しでコピーできます")}
 
 function record(v,f,meta){
@@ -800,7 +961,6 @@ function record(v,f,meta){
   const rec=Object.assign({v,f,t:Date.now()},meta||{});
   $("slip").classList.remove("stale");
   hist.unshift(rec); hist=hist.slice(0,300); save(); render(); show(rec);
-  if(navigator.vibrate) try{navigator.vibrate(60)}catch(e){}
 }
 
 function render(){
@@ -814,7 +974,7 @@ function render(){
     const meta=document.createElement("span");meta.className="meta";
     const d=new Date(h.t);
     meta.textContent=`${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}・${fmtName(h.f,h.v)}${h.sample?"・サンプル":""}`;
-    b.append(val,meta); b.onclick=()=>{show(h);window.scrollTo({top:0,behavior:"smooth"})};
+    b.append(val,meta); b.onclick=()=>{show(h);openSheet("hist")};
     const del=document.createElement("button");del.className="del";del.type="button";del.textContent="削除";del.setAttribute("aria-label",h.v+" を削除");
     del.onclick=()=>{hist.splice(i,1);save();render()};
     li.append(b,del); ul.appendChild(li);
@@ -845,7 +1005,7 @@ function submitManual(){
   const cg=current&&drugInfo(current);
   if(/^\((1[01789]|21|30)\)/.test(v)&&!/\(01\)/.test(v)&&cg){v="(01)"+cg.gtin+v;record(v,current.f,{cc:"貼り付け"})}
   else record(v,"MANUAL");
-  $("manualInput").value="";$("manualInput").blur();
+  $("manualInput").value="";$("manualInput").blur();openSheet("manual");
 }
 $("manual").addEventListener("submit",e=>{e.preventDefault();submitManual()});
 $("manualInput").addEventListener("paste",()=>{setTimeout(()=>{const v=normCode($("manualInput").value);if(drugInfo({v,f:"MANUAL"})||/^\d{8,14}$/.test(v)||(/^\((1[01789]|21)\)/.test(v)&&current&&drugInfo(current))) submitManual()},0)});
@@ -977,7 +1137,7 @@ function withPts(r,rot,c){
   return {v:r.v,f:r.f,pts:p.length>=2?p:null};
 }
 
-async function handleFile(file){
+async function handleFile(file,from){
   if(!file) return;
   stopLive();
   if(!hasZX&&!detector&&!hasWASM){status("読み取り用ライブラリを読み込めませんでした。通信状態を確認して開き直してください。",true);return}
@@ -992,7 +1152,7 @@ async function handleFile(file){
     if(r){
       let v=r.v,meta={};
       const g=drugInfo({v:r.v,f:r.f});
-      if(g&&!g.jan&&!g.exp&&!g.lot){ // 医薬品 GS1 で期限・ロットがまだない → 合成シンボルを探す
+      if(isDrug(g)&&!g.exp&&!g.lot){ // 医薬品 GS1 で期限・ロットがまだない → 合成シンボルを探す
         status("使用期限・ロット（合成シンボル）を探しています…");
         await new Promise(res=>setTimeout(res,20));
         const cc=await findComposite(img,g.gtin).catch(()=>null);
@@ -1000,6 +1160,7 @@ async function handleFile(file){
         if(cc){v="(01)"+g.gtin+cc.text;meta.cc=cc.type}
       }
       record(v,r.f,meta);status(meta.cc?"読み取りました（使用期限・ロットも読めました）":"読み取りました");
+      openSheet(from||"shot");
     }else{
       // 前の結果と取り違えないよう、結果欄を「読めなかった」表示にする
       current=null;$("slip").classList.add("stale");
@@ -1010,12 +1171,13 @@ async function handleFile(file){
   img.onerror=()=>status("この画像は開けませんでした。",true);
   img.src=url;
 }
-$("shot").addEventListener("change",e=>{handleFile(e.target.files[0]);e.target.value=""});
-$("pick").addEventListener("change",e=>{handleFile(e.target.files[0]);e.target.value=""});
+$("shot").addEventListener("change",e=>{handleFile(e.target.files[0],"shot");e.target.value=""});
+$("pick").addEventListener("change",e=>{handleFile(e.target.files[0],"pick");e.target.value=""});
 
 /* ---------- live scanning (works when the page is allowed to use the camera) ---------- */
 let stream=null,loopId=0,lastV="",lastT=0;
 async function startLive(){
+  if(stream) return;
   const v=$("video");
   $("measureBtn").hidden=true; $("measure").hidden=true;
   try{
@@ -1027,7 +1189,9 @@ async function startLive(){
   $("view").classList.add("live"); $("liveBtn").textContent="停止";
   await v.play().catch(()=>{});
   status("バーコードを枠に入れてください");
-  const id=++loopId;let n=0;
+  const id=++loopId;let n=0,cand="",candN=0,candT=0;
+  const tr0=stream.getVideoTracks()[0];
+  if(tr0) tr0.onended=()=>{if(id===loopId&&!document.hidden){stopLive();startLive()}}; // iOS がカメラを止めたら開き直す
   const tick=async()=>{
     if(id!==loopId) return;
     if(v.readyState>=2){
@@ -1035,12 +1199,24 @@ async function startLive(){
       if(detector){try{const d=await detector.detect(v);if(d.length) r={v:d[0].rawValue,f:d[0].format}}catch(e){}}
       if(!r&&hasZX) r=zxDecodeCanvas(canvasFrom(v,960));
       if(!r&&hasWASM&&n%3===0) r=await wasmDecode(canvasFrom(v,1280),false);
-      if(r&&!(r.v===lastV&&Date.now()-lastT<3000)){lastV=r.v;lastT=Date.now();record(r.v,r.f);status("読み取りました（続けて読めます）")}
+      if(r){
+        if(r.v===cand&&Date.now()-candT<1500) candN++; else {cand=r.v;candN=1}
+        candT=Date.now();
+        if(candN>=2){ // 同じ結果が2コマ続いたら確定（誤読を防ぐ）
+          stopLive();record(r.v,r.f);status("読み取りました");openSheet("live");return;
+        }
+      }
     }
     setTimeout(()=>requestAnimationFrame(tick),180);
   };
   tick();
 }
+let resumeLive=false;
+document.addEventListener("visibilitychange",()=>{
+  if(document.hidden){if(stream){resumeLive=true;stopLive()}}
+  else if(resumeLive){resumeLive=false;if(!document.body.classList.contains("sheet")) setTimeout(startLive,250)}
+});
+window.addEventListener("pagehide",()=>{if(stream){resumeLive=true;stopLive()}});
 function stopLive(){
   loopId++;
   if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}
