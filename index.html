@@ -753,14 +753,14 @@ function parseGS1(raw,f){
     pack:PK[ai["01"][0]]||("インジケーター "+ai["01"][0]),prefix:ai["01"].slice(1,8)};
 }
 // 判定ルール（日本製薬団体連合会「医療用医薬品へのバーコード表示」に準拠）
-//  医療用医薬品：HOT マスターに載っている、または GTIN-14 の先頭3桁が 049／149／249
+//  医療用医薬品：HOT マスターに載っている、または GTIN-14 の先頭3桁が 049／149／249／045／145／245（国内の事業者コード 49・45）
 //  インストアコード：先頭1桁を除いた番号が 2 で始まる（20〜29）
 //  それ以外：一般の GS1 商品コード
 function drugInfo(rec){
   const g=parseGS1(rec.v,rec.f);if(!g) return null;
   const ms=mstLookup(g.gtin);
   g.inMaster=!!(ms&&ms.rec);
-  g.kind=(g.inMaster||/^[012]49/.test(g.gtin))?"drug":(g.gtin[1]==="2"?"instore":"gs1");
+  g.kind=(g.inMaster||/^[012]4[59]/.test(g.gtin))?"drug":(g.gtin[1]==="2"?"instore":"gs1");
   return g;
 }
 const isDrug=g=>!!g&&g.kind==="drug";
@@ -868,7 +868,7 @@ function show(rec){
   if(/^2\d{12}$/.test(rec.v)||/^2\d{7}$/.test(rec.v)) add("インストアコード（お店独自の番号）","warn");
   if(/^978|^979/.test(rec.v)&&rec.v.length===13) add("ISBN（書籍）");
   if(g){
-    if(g.kind==="drug") add("医療用医薬品"+(g.inMaster?"":"（049/149/249）"),"ok");
+    if(g.kind==="drug") add("医療用医薬品"+(g.inMaster?"":"（先頭"+g.gtin.slice(0,3)+"）"),"ok");
     else if(g.kind==="instore") add("インストアコード（お店独自の番号）","warn");
     else add("GS1 商品コード");
   }
