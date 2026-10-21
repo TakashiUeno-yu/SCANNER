@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>スキャン帳</title>
+<title>SCANNER</title>
 <meta name="theme-color" content="#0E7458">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="スキャン帳">
+<meta name="apple-mobile-web-app-title" content="SCANNER">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" href="apple-touch-icon.png">
@@ -35,10 +35,11 @@
 html,body{background:var(--bg);color:var(--ink)}
 body{font-family:var(--sans);font-size:15px;line-height:1.6;-webkit-text-size-adjust:100%}
 .wrap{max-width:560px;margin:0 auto;padding-block:20px 40px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:20px}
-header{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
-h1{font-size:26px;font-weight:900;letter-spacing:.02em;margin:0;text-wrap:balance}
+header{display:flex;align-items:center;justify-content:space-between;gap:10px}
+h1{font-size:26px;font-weight:900;letter-spacing:.02em;margin:0;white-space:nowrap;flex:0 0 auto}
+.logo{display:block;height:30px;width:auto;overflow:visible}.logo .i{fill:var(--ink)}
 h1 small{font-family:var(--mono);font-size:11px;font-weight:500;color:var(--muted);letter-spacing:.12em;margin-left:8px}
-.badge{font-size:11px;color:var(--muted);border:1px solid var(--line);border-radius:99px;padding:2px 10px;white-space:nowrap}
+.badge{font-size:11px;color:var(--muted);border:1px solid var(--line);border-radius:99px;padding:2px 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 
 /* scanner window */
 .scanner{background:var(--ink);border-radius:18px;padding:14px;display:grid;gap:12px}
@@ -155,7 +156,7 @@ footer{font-size:12px;color:var(--muted);line-height:1.7}
 
 <div class="wrap">
   <header>
-    <h1>スキャン帳<small>NO ADS</small></h1>
+    <h1><svg class="logo" viewBox="0 0 390 76" role="img" aria-label="SCANNER"><polygon class="i" points="16.8,6.0 21.3,2.0 42.9,2.0 46.4,6.0 41.8,10.0 20.2,10.0"/><polygon class="i" points="15.4,7.2 18.8,11.2 15.8,32.8 11.2,36.8 7.8,32.8 10.8,11.2"/><polygon class="i" points="12.3,38.0 16.8,34.0 38.4,34.0 41.9,38.0 37.3,42.0 15.7,42.0"/><polygon class="i" points="42.9,39.2 46.3,43.2 43.3,64.8 38.7,68.8 35.3,64.8 38.3,43.2"/><polygon class="i" points="7.8,70.0 12.3,66.0 33.9,66.0 37.4,70.0 32.8,74.0 11.2,74.0"/><polygon class="i" points="68.8,6.0 73.3,2.0 94.9,2.0 98.4,6.0 93.8,10.0 72.2,10.0"/><polygon class="i" points="67.4,7.2 70.8,11.2 67.8,32.8 63.2,36.8 59.8,32.8 62.8,11.2"/><polygon class="i" points="62.9,39.2 66.3,43.2 63.3,64.8 58.7,68.8 55.3,64.8 58.3,43.2"/><polygon class="i" points="59.8,70.0 64.3,66.0 85.9,66.0 89.4,70.0 84.8,74.0 63.2,74.0"/><polygon class="i" points="120.8,6.0 125.3,2.0 146.9,2.0 150.4,6.0 145.8,10.0 124.2,10.0"/><polygon class="i" points="151.4,7.2 154.8,11.2 151.8,32.8 147.2,36.8 143.8,32.8 146.8,11.2"/><polygon class="i" points="146.9,39.2 150.3,43.2 147.3,64.8 142.7,68.8 139.3,64.8 142.3,43.2"/><polygon class="i" points="114.9,39.2 118.3,43.2 115.3,64.8 110.7,68.8 107.3,64.8 110.3,43.2"/><polygon class="i" points="119.4,7.2 122.8,11.2 119.8,32.8 115.2,36.8 111.8,32.8 114.8,11.2"/><polygon class="i" points="116.3,38.0 120.8,34.0 142.4,34.0 145.9,38.0 141.3,42.0 119.7,42.0"/><polygon class="i" points="211.4,7.2 214.8,11.2 211.8,32.8 207.2,36.8 203.8,32.8 206.8,11.2"/><polygon class="i" points="206.9,39.2 210.3,43.2 207.3,64.8 202.7,68.8 199.3,64.8 202.3,43.2"/><polygon class="i" points="166.9,39.2 170.3,43.2 167.3,64.8 162.7,68.8 159.3,64.8 162.3,43.2"/><polygon class="i" points="171.4,7.2 174.8,11.2 171.8,32.8 167.2,36.8 163.8,32.8 166.8,11.2"/><polygon class="i" points="176.0,14.4 183.3,36.8 186.4,36.8 187.5,29.2 181.5,11.2 176.4,11.2"/><polygon class="i" points="186.6,46.8 192.6,64.8 197.7,64.8 198.1,61.6 190.8,39.2 187.7,39.2"/><polygon class="i" points="271.4,7.2 274.8,11.2 271.8,32.8 267.2,36.8 263.8,32.8 266.8,11.2"/><polygon class="i" points="266.9,39.2 270.3,43.2 267.3,64.8 262.7,68.8 259.3,64.8 262.3,43.2"/><polygon class="i" points="226.9,39.2 230.3,43.2 227.3,64.8 222.7,68.8 219.3,64.8 222.3,43.2"/><polygon class="i" points="231.4,7.2 234.8,11.2 231.8,32.8 227.2,36.8 223.8,32.8 226.8,11.2"/><polygon class="i" points="236.0,14.4 243.3,36.8 246.4,36.8 247.5,29.2 241.5,11.2 236.4,11.2"/><polygon class="i" points="246.6,46.8 252.6,64.8 257.7,64.8 258.1,61.6 250.8,39.2 247.7,39.2"/><polygon class="i" points="292.8,6.0 297.3,2.0 318.9,2.0 322.4,6.0 317.8,10.0 296.2,10.0"/><polygon class="i" points="283.8,70.0 288.3,66.0 309.9,66.0 313.4,70.0 308.8,74.0 287.2,74.0"/><polygon class="i" points="286.9,39.2 290.3,43.2 287.3,64.8 282.7,68.8 279.3,64.8 282.3,43.2"/><polygon class="i" points="291.4,7.2 294.8,11.2 291.8,32.8 287.2,36.8 283.8,32.8 286.8,11.2"/><polygon class="i" points="288.3,38.0 292.8,34.0 314.4,34.0 317.9,38.0 313.3,42.0 291.7,42.0"/><polygon class="i" points="344.8,6.0 349.3,2.0 378.9,2.0 382.4,6.0 377.8,10.0 348.2,10.0"/><polygon class="i" points="383.4,7.2 386.8,11.2 383.8,32.8 379.2,36.8 375.8,32.8 378.8,11.2"/><polygon class="i" points="338.9,39.2 342.3,43.2 339.3,64.8 334.7,68.8 331.3,64.8 334.3,43.2"/><polygon class="i" points="343.4,7.2 346.8,11.2 343.8,32.8 339.2,36.8 335.8,32.8 338.8,11.2"/><polygon class="i" points="340.3,38.0 344.8,34.0 374.4,34.0 377.9,38.0 373.3,42.0 343.7,42.0"/><polygon class="i" points="358.1,50.8 364.0,68.8 369.1,68.8 369.6,65.6 362.2,43.2 359.1,43.2"/></svg></h1>
     <span class="badge">履歴はこの端末だけに保存</span>
   </header>
 

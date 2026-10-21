@@ -1,6 +1,6 @@
 {
-  "name": "スキャン帳",
-  "short_name": "スキャン帳",
+  "name": "SCANNER",
+  "short_name": "SCANNER",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
