@@ -882,9 +882,9 @@ const IOS=/iP(hone|ad|od)/.test(navigator.userAgent)||(navigator.platform==="Mac
 function link(label,href,cls,safari){const a=document.createElement("a");a.className="btn ghost small "+(cls||"");a.href=href;a.target="_blank";a.rel="noopener";a.textContent=label;
   a.addEventListener("click",e=>{resumeLive=false;stopLive();
     if(!(safari&&STANDALONE&&IOS&&/^https?:\/\//i.test(href))||a.dataset.inapp) return;
-    e.preventDefault();let left=false;const h=()=>{if(document.hidden)left=true};document.addEventListener("visibilitychange",h);
+    e.preventDefault();let left=false;backFromSafari=sheetFrom||"main";const h=()=>{if(document.hidden)left=true};document.addEventListener("visibilitychange",h);
     location.href="x-safari-"+href;
-    setTimeout(()=>{document.removeEventListener("visibilitychange",h);if(!left&&!document.hidden){a.dataset.inapp="1";a.textContent=label+"（アプリ内で開く）";status("Safari で開けませんでした。もう一度押すとアプリ内で開きます（右下のコンパスで Safari に移れます）",true)}},1500);
+    setTimeout(()=>{document.removeEventListener("visibilitychange",h);if(!left&&!document.hidden){backFromSafari="";a.dataset.inapp="1";a.textContent=label+"（アプリ内で開く）";status("Safari で開けませんでした。もう一度押すとアプリ内で開きます（右下のコンパスで Safari に移れます）",true)}},1500);
   });return a}
 
 function show(rec){
@@ -1279,9 +1279,10 @@ async function startLive(){
   };
   tick();
 }
-let resumeLive=false;
+let resumeLive=false,backFromSafari=""; // Safari でサイトを開いて戻ってきたら、結果画面を閉じて読み取り画面に戻る（連続読み取りからなら再開）
 document.addEventListener("visibilitychange",()=>{
   if(document.hidden){if(stream){resumeLive=true;stopLive()}}
+  else if(backFromSafari){const f=backFromSafari;backFromSafari="";resumeLive=false;closeSheet();if(f==="live") setTimeout(startLive,250);else status("")}
   else if(resumeLive){resumeLive=false;if(!document.body.classList.contains("sheet")) setTimeout(startLive,250)}
 });
 window.addEventListener("pagehide",()=>{if(stream){resumeLive=true;stopLive()}});
