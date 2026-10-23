@@ -1430,7 +1430,13 @@ $("liveBtn").onclick=()=>{ if(stream){stopLive();status("")} else startLive() };
 // 枠（iframe）の中ではカメラの連続読み取りが許可されないため、ボタンを出さない
 (function(){let framed=false;try{framed=window.self!==window.top}catch(e){framed=true}
   const pol=document.permissionsPolicy||document.featurePolicy;let camOK=true;try{if(pol&&pol.allowsFeature)camOK=pol.allowsFeature("camera")}catch(e){}
-  if(framed&&camOK!==true||framed&&!pol||!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia)){$("liveBtn").hidden=true;$("liveNote").hidden=false;$("pick").closest("label").style.gridColumn="1/-1"}})();
+  if(framed&&camOK!==true||framed&&!pol||!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia)){$("liveBtn").hidden=true;$("liveNote").hidden=false;$("pick").closest("label").style.gridColumn="1/-1"}
+  else{ // 連続読み取りが使えるときは、それを大きいボタン（上）にし、「撮影して読み取る」を下の段へ
+    const lb=$("liveBtn"),sb=$("shot").closest("label");
+    lb.classList.replace("dark","primary");sb.classList.replace("primary","dark");lb.parentNode.insertBefore(lb,sb);
+    if(sb.firstChild&&sb.firstChild.nodeType===3) sb.firstChild.nodeValue="撮影して読み取る"; // 小さいボタンで2行に折れないよう 📷 を外す
+    $("hint").innerHTML='<span class="bars">▌▍▎▌▏▍▌▎▍</span>下の「連続読み取り」でカメラが開きます。<br>バーコードを枠に入れて、手を止めてください。';
+  }})();
 
 render();
 show(hist[0]||{v:"—",f:""});
