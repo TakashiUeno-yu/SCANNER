@@ -889,7 +889,17 @@ mstShowStat();
 function toast(msg){const t=$("toast");t.textContent=msg;t.classList.add("show");clearTimeout(toast.h);toast.h=setTimeout(()=>t.classList.remove("show"),1600)}
 function status(msg,err){const s=$("status");s.textContent=msg||"";s.classList.toggle("err",!!err)}
 
-function link(label,href,cls){const a=document.createElement("a");a.className="btn ghost small "+(cls||"");a.href=href;a.target="_blank";a.rel="noopener";a.textContent=label;a.addEventListener("click",()=>{resumeLive=false;stopLive()});return a}
+/* ホーム画面アプリ（iPhone）から開くリンクは、アプリ内のブラウザではなく普通の Safari で開く（iOS 17 以降の x-safari-https: を使う）。
+   1.5 秒たってもアプリが前に出たまま（Safari に切り替わらない）なら、そのボタンは次からアプリ内で開く。 */
+const STANDALONE=navigator.standalone===true||(window.matchMedia&&matchMedia("(display-mode: standalone)").matches);
+const IOS=/iP(hone|ad|od)/.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
+function link(label,href,cls,safari){const a=document.createElement("a");a.className="btn ghost small "+(cls||"");a.href=href;a.target="_blank";a.rel="noopener";a.textContent=label;
+  a.addEventListener("click",e=>{resumeLive=false;stopLive();
+    if(!(safari&&STANDALONE&&IOS&&/^https?:\/\//i.test(href))||a.dataset.inapp) return;
+    e.preventDefault();let left=false;const h=()=>{if(document.hidden)left=true};document.addEventListener("visibilitychange",h);
+    location.href="x-safari-"+href;
+    setTimeout(()=>{document.removeEventListener("visibilitychange",h);if(!left&&!document.hidden){a.dataset.inapp="1";a.textContent=label+"（アプリ内で開く）";status("Safari で開けませんでした。もう一度押すとアプリ内で開きます（右下のコンパスで Safari に移れます）",true)}},1500);
+  });return a}
 
 function show(rec){
   current=rec;
@@ -990,12 +1000,12 @@ function show(rec){
   };
   acts.appendChild(copy);
   const q=encodeURIComponent(rec.v);
-  if(isURL(rec.v)) acts.appendChild(link("サイトを開く",rec.v));
+  if(isURL(rec.v)) acts.appendChild(link("サイトを開く",rec.v,"",true));
   if(!isDrug(g)&&/^\d{8,14}$/.test(rec.v)&&!/^2/.test(rec.v)){
-    acts.appendChild(link("Amazonで探す","https://www.amazon.co.jp/s?k="+q));
-    acts.appendChild(link("Yahoo!ショッピング","https://shopping.yahoo.co.jp/search?p="+q));
+    acts.appendChild(link("Amazonで探す","https://www.amazon.co.jp/s?k="+q,"",true));
+    acts.appendChild(link("Yahoo!ショッピング","https://shopping.yahoo.co.jp/search?p="+q,"",true));
   }
-  acts.appendChild(link("Googleで検索","https://www.google.com/search?q="+q));
+  acts.appendChild(link("Googleで検索","https://www.google.com/search?q="+q,"",true));
 }
 let sheetFrom=null;
 function openSheet(from){
