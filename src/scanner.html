@@ -998,12 +998,22 @@ function show(rec){
   acts.appendChild(link("Googleで検索","https://www.google.com/search?q="+q,"",true));
 }
 let sheetFrom=null;
+/* ピンチで画面を拡大したまま結果画面・読み取り画面に切り替わると、拡大のまま表示される。
+   切り替えるときに、viewport に一瞬だけ maximum-scale=1 を足して倍率を 1 に戻す（iPhone の Safari）。拡大そのものは今までどおりできる。 */
+function resetZoom(){
+  const vv=window.visualViewport;if(vv&&Math.abs(vv.scale-1)<0.01) return;
+  const m=document.querySelector('meta[name="viewport"]');if(!m) return;
+  const c=m.getAttribute("content")||"";if(/maximum-scale/.test(c)) return;
+  m.setAttribute("content",c+",maximum-scale=1");
+  setTimeout(()=>m.setAttribute("content",c),400);
+}
 function openSheet(from){
+  resetZoom();
   sheetFrom=from;document.body.classList.add("sheet");$("slip").scrollTop=0;
   $("sheetNext").textContent=from==="live"?"続けて読む":"もう一度撮影";
   if(navigator.vibrate) try{navigator.vibrate(80)}catch(e){}
 }
-function closeSheet(){document.body.classList.remove("sheet")}
+function closeSheet(){document.body.classList.remove("sheet");resetZoom()}
 $("sheetNext").onclick=()=>{const f=sheetFrom;closeSheet();if(f==="live")startLive();else $("shot").click()};
 $("sheetClose").onclick=closeSheet;
 function selectCode(){const r=document.createRange();r.selectNodeContents($("code"));const s=getSelection();s.removeAllRanges();s.addRange(r);toast("選択しました。長押しでコピーできます")}
