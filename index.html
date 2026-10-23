@@ -1255,7 +1255,7 @@ $("pick").addEventListener("change",e=>{handleFile(e.target.files[0],"pick");e.t
 /* ---------- live scanning (works when the page is allowed to use the camera) ---------- */
 let stream=null,loopId=0,lastV="",lastT=0;
 let camGen=0,camStarting=false; // カメラの開始・停止の世代（開始待ちの間に止められたら、取れたカメラをすぐ閉じる）
-async function startLive(){
+async function startLive(auto){
   if(stream||camStarting) return;
   const v=$("video");
   $("measureBtn").hidden=true; $("measure").hidden=true;
@@ -1264,6 +1264,7 @@ async function startLive(){
     s=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"},width:{ideal:1920},height:{ideal:1080}},audio:false});
   }catch(e){
     camStarting=false;
+    if(auto===true){status("「連続読み取り」を押すとカメラが開きます");return} // 起動時の自動開始で失敗したときは、エラーにしない
     status("この画面ではカメラの連続読み取りが使えません。「撮影して読み取る」を使ってください。",true);return;
   }
   camStarting=false;
@@ -1471,6 +1472,8 @@ show(hist[0]||{v:"—",f:""});
 if(!hist.length){$("code").textContent="—";$("chips").innerHTML="";$("actions").innerHTML=""}
 if(!hasZX&&!detector&&!hasWASM) status("読み取り用ライブラリを読み込めませんでした。通信状態を確認してください。",true);
 setTimeout(ensureWasm,800);
+// 連続読み取りが使える画面では、起動したら連続読み取りを始める（画面が隠れていたら、前に出たときに始める）
+if(!$("liveBtn").hidden){ if(document.hidden) resumeLive=true; else setTimeout(()=>{if(!document.body.classList.contains("sheet")) startLive(true)},300) }
 })();
 </script>
 </body>
